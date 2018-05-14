@@ -1,0 +1,3 @@
+-Check multiple file encryptions
+-Add file extensions as an automatic thing
+-make executable
