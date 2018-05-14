@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import argparse
 import os
 import binascii
@@ -23,8 +25,7 @@ def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
                                      'Encrypt files using 128-bit AES')
-    parser.add_argument('-f', '--filenames', required=True, nargs='+',
-                        help='Files to encrypt', type=str)
+    parser.add_argument('files', nargs='+', help='Files to encrypt', type=str)
     parser.add_argument('-p', '--password', required=True,
                         help='Password to encrypt with', type=str)
     parser.add_argument('-o', '--overwrite', required=False,
@@ -95,7 +96,7 @@ def encrypt_file(key, data):
 if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
-    filenames = args.filenames
+    filenames = args.files
     password = args.password
     # Populate file streams
     file_streams = []

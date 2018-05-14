@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import argparse
 import os
 import binascii
@@ -35,8 +37,7 @@ def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
                                      'Decrypt files using 128-bit AES')
-    parser.add_argument('-f', '--filenames', required=True, nargs='+',
-                        help='Files to decrypt', type=str)
+    parser.add_argument('files', nargs='+', help='Files to decrypt', type=str)
     parser.add_argument('-p', '--password', required=True,
                         help='Password to decrypt with', type=str)
     parser.add_argument('-r', '--remove', required=False,
@@ -56,7 +57,6 @@ def password_to_key(password, salt):
       *  key (byte str): Result of PBKDF2 function on user's password
     """
     # 8-byte random salt
-    print("Calling PBKDF2 with: " + str(salt) + " " + password)
     key = PBKDF2(password, salt, dkLen=16, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return key
@@ -86,7 +86,7 @@ def decrypt_file(key, iv, ciphertext):
 if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
-    filenames = args.filenames
+    filenames = args.files
     password = args.password
     # Populate file streams
     file_streams = []
