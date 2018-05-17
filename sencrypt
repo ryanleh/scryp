@@ -124,7 +124,7 @@ if __name__ == "__main__":
                  'ciphertext': ciphertext.hex()
         }), 'utf-8')
         mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
-        to_write = salt + key_hash + iv + value + mac
+        to_write = salt + key_hash + iv + mac + value
         new_file = open(cwd + '/' + plaintext[0] + '.enc', 'bw')
         new_file.write(binascii.hexlify(to_write))
         new_file.close()

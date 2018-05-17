@@ -1,8 +1,8 @@
 #!/usr/bin/python3
-
 import argparse
 import os
 import binascii
+import json
 from Crypto.Cipher import AES
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Protocol.KDF import PBKDF2
@@ -90,30 +90,37 @@ if __name__ == "__main__":
     password = args.password
     remove_ct = args.remove
     # Populate file streams
-    files = []
+    ciphertexts = []
     for filename in filenames:
         try:
-            name, extension = filename.split('.')
-            if extension != "enc":
-                raise TypeError(filename + " is not a valid ciphertext")
+            # TODO: add try-catches
             file = open(cwd + '/' + filename, 'r')
-            files.append((name, binascii.unhexlify(file.read())))
+            ciphertexts.append(binascii.unhexlify(file.read()))
             file.close()
             if remove_ct:
                 os.remove(cwd + '/' + filename)
         except IOError:
             print("Given file: " + filename + " does not exist. Skipping")
 
-    for file_stream in file_streams:
-        salt = file_stream[1][:8]
-        key_hash = file_stream[1][8:40]
+    for ciphertext in ciphertexts:
+        salt = ciphertext[:8]
+        key_hash = ciphertext[8:40]
         given_key = password_to_key(password, salt)
         if hash_key(given_key) != key_hash:
             raise CryptoError("Invalid password")
-        iv = file_stream[1][40:48]
-        ciphertext = file_stream[1][48:]
-        plaintext = decrypt_file(given_key, iv, ciphertext)
-        new_file = open(cwd + '/' + file_stream[0] + '.dec', 'w')
+        cipher_key = given_key[:16]
+        mac_key = given_key[16:]
+        iv = ciphertext[40:48]
+        mac = ciphertext[48:80]
+        value = ciphertext[80:]
+        calc_mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
+        if mac != calc_mac:
+            raise CryptoError("Message has been tampered with")
+        value = json.loads(str(value, 'utf-8'))
+        filename = str(binascii.unhexlify(value['filename']), 'utf-8')
+        plaintext = decrypt_file(cipher_key, binascii.unhexlify(value['iv']),
+                                 binascii.unhexlify(value['ciphertext']))
+        new_file = open(cwd + '/' + filename, 'w')
         new_file.write(str(plaintext, 'utf-8'))
         new_file.close()
-        print("File: " + file_stream[0] + " decrypted!")
+        print("File: " + filename + " decrypted!")
