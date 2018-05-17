@@ -1,8 +1,8 @@
 #!/usr/bin/python3
-
 import argparse
 import os
 import binascii
+import json
 from Crypto.Cipher import AES
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Protocol.KDF import PBKDF2
@@ -10,22 +10,20 @@ from Crypto import Random
 from Crypto.Util import Counter
 
 """
-Following best practice:
 1. Random 128 bit data key is generated
 2. Generate random salt and create second key with
    given password and PBKDF2
-3. Encrypt data key with user-generated key
-4. Hash of user-generated key to check for correctness later
-5. Store salt, encrypted data key, hash, and data
+3. Encrypt data key with user-generated key using 128-bit AES
+4. Hash user-generated key to check for correctness later
+5. Store salt, hash, iv, and data
 """
-# TODO: Check argument type checking
 
 
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
                                      'Encrypt files using 128-bit AES')
-    parser.add_argument('files', nargs='+', help='Files to encrypt', type=str)
+    parser.add_argument('filenames', nargs='+', help='Files to encrypt', type=str)
     parser.add_argument('-p', '--password', required=True,
                         help='Password to encrypt with', type=str)
     parser.add_argument('-o', '--overwrite', required=False,
@@ -96,25 +94,38 @@ def encrypt_file(key, data):
 if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
-    filenames = args.files
+    filenames = args.filenames
     password = args.password
+    overwrite = args.overwrite
     # Populate file streams
-    file_streams = []
+    plaintexts = []
     for filename in filenames:
         try:
-            file = open(cwd + '/' + filename, 'r')  # TODO: add optional delete
-            file_streams.append((filename.split('.')[0],
-                                bytes(file.read(), 'utf-8')))
+            file = open(cwd + '/' + filename, 'r')
+            # Each element is a tuple of filename, filetype, and plaintext
+            plaintexts.append((filename,
+                               bytes(file.read(), 'utf-8')))
             file.close()
+            if overwrite:
+                os.remove(cwd + '/' + filename)
         except IOError:
             print("Given file: " + filename + " does not exist. Skipping")
 
-    for file_stream in file_streams:
+    for plaintext in plaintexts:
         salt, key = password_to_key(password)
         key_hash = hash_key(key)
-        iv, encrypted_stream = encrypt_file(key, file_stream[1])
-        to_write = salt + key_hash + iv + encrypted_stream
-        new_file = open(cwd + '/' + file_stream[0] + '.enc', 'bw')
+        cipher_key = key[:16]
+        mac_key = key[16:]
+        iv, ciphertext = encrypt_file(cipher_key, plaintext[1])
+        # TODO: Please name this better
+        value = bytes(json.dumps({
+                 'filename': bytes(plaintext[0], 'utf-8').hex(),
+                 'iv': iv.hex(),
+                 'ciphertext': ciphertext.hex()
+        }), 'utf-8')
+        mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
+        to_write = salt + key_hash + iv + value + mac
+        new_file = open(cwd + '/' + plaintext[0] + '.enc', 'bw')
         new_file.write(binascii.hexlify(to_write))
         new_file.close()
-        print("File: " + file_stream[0] + " encrypted!")
+        print("File: " + plaintext[0] + " encrypted!")

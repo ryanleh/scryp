@@ -37,7 +37,7 @@ def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
                                      'Decrypt files using 128-bit AES')
-    parser.add_argument('files', nargs='+', help='Files to decrypt', type=str)
+    parser.add_argument('filenames', nargs='+', help='Files to decrypt', type=str)
     parser.add_argument('-p', '--password', required=True,
                         help='Password to decrypt with', type=str)
     parser.add_argument('-r', '--remove', required=False,
@@ -86,18 +86,21 @@ def decrypt_file(key, iv, ciphertext):
 if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
-    filenames = args.files
+    filenames = args.filenames
     password = args.password
+    remove_ct = args.remove
     # Populate file streams
-    file_streams = []
+    files = []
     for filename in filenames:
         try:
             name, extension = filename.split('.')
             if extension != "enc":
                 raise TypeError(filename + " is not a valid ciphertext")
-            file = open(cwd + '/' + filename, 'r')  # TODO: add optional delete
-            file_streams.append((name, binascii.unhexlify(file.read())))
+            file = open(cwd + '/' + filename, 'r')
+            files.append((name, binascii.unhexlify(file.read())))
             file.close()
+            if remove_ct:
+                os.remove(cwd + '/' + filename)
         except IOError:
             print("Given file: " + filename + " does not exist. Skipping")
 
