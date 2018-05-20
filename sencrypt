@@ -55,6 +55,7 @@ def password_to_key(password):
     """
     # 8-byte random salt
     salt = get_random_bytes(8)
+    # You'll probably want to change the iteration count to something smaller
     key = PBKDF2(password, salt, dkLen=16, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return salt, key
@@ -102,7 +103,7 @@ if __name__ == "__main__":
     for filename in filenames:
         try:
             file = open(cwd + '/' + filename, 'r')
-            # Each element is a tuple of filename, filetype, and plaintext
+            # Each element is a tuple of filename and plaintext
             plaintexts.append((filename,
                                bytes(file.read(), 'utf-8')))
             file.close()
@@ -112,12 +113,14 @@ if __name__ == "__main__":
             print("Given file: " + filename + " does not exist. Skipping")
 
     for plaintext in plaintexts:
+        # Generate salt, key, and key hash
         salt, key = password_to_key(password)
         key_hash = hash_key(key)
         cipher_key = key[:16]
         mac_key = key[16:]
+        # Encrypt the plaintext
         iv, ciphertext = encrypt_file(cipher_key, plaintext[1])
-        # TODO: Please name this better
+        # Convert necessary values to hex and dump in a json object
         value = bytes(json.dumps({
                  'filename': bytes(plaintext[0], 'utf-8').hex(),
                  'iv': iv.hex(),
@@ -127,5 +130,6 @@ if __name__ == "__main__":
         to_write = salt + key_hash + iv + mac + value
         new_file = open(cwd + '/' + plaintext[0] + '.enc', 'bw')
         new_file.write(binascii.hexlify(to_write))
+        new_file.write(bytes("\n", 'utf-8'))
         new_file.close()
         print("File: " + plaintext[0] + " encrypted!")

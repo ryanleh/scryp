@@ -18,7 +18,6 @@ Following best practice:
 4. Hash of user-generated key to check for correctness later
 5. Store salt, encrypted data key, hash, and data
 """
-# TODO: Check argument type checking
 
 
 class CryptoError(Exception):
@@ -28,7 +27,6 @@ class CryptoError(Exception):
         expression -- input expression in which the error occurred
         message -- explanation of the error
     """
-
     def __init__(self, message):
         self.message = message
 
@@ -93,21 +91,25 @@ if __name__ == "__main__":
     ciphertexts = []
     for filename in filenames:
         try:
-            # TODO: add try-catches
             file = open(cwd + '/' + filename, 'r')
-            ciphertexts.append(binascii.unhexlify(file.read()))
+            try:
+                file_contents = binascii.unhexlify(file.read().strip())
+            except binascii.Error:
+                raise CryptoError("Invalid ciphertext")
             file.close()
-            if remove_ct:
-                os.remove(cwd + '/' + filename)
         except IOError:
             print("Given file: " + filename + " does not exist. Skipping")
-
+        ciphertexts.append(file_contents)
+        if remove_ct:
+            os.remove(cwd + '/' + filename)
     for ciphertext in ciphertexts:
+        # Extract salt and key_hash to check if key is valid
         salt = ciphertext[:8]
         key_hash = ciphertext[8:40]
         given_key = password_to_key(password, salt)
         if hash_key(given_key) != key_hash:
             raise CryptoError("Invalid password")
+        # Extract remaining values and make sure MAC is valid
         cipher_key = given_key[:16]
         mac_key = given_key[16:]
         iv = ciphertext[40:48]
@@ -117,6 +119,7 @@ if __name__ == "__main__":
         if mac != calc_mac:
             raise CryptoError("Message has been tampered with")
         value = json.loads(str(value, 'utf-8'))
+        # Decrypt file and write to the original filename
         filename = str(binascii.unhexlify(value['filename']), 'utf-8')
         plaintext = decrypt_file(cipher_key, binascii.unhexlify(value['iv']),
                                  binascii.unhexlify(value['ciphertext']))

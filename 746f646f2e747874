@@ -1,7 +1,0 @@
--Add file extensions as an automatic thing
--update description in file
--add better comments and such
--allow full paths and not just current directory
--make an incorrect file name just iterate through the next not raise an
-exception? maybe
--have more integrity checks yo
