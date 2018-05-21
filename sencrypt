@@ -9,21 +9,12 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto import Random
 from Crypto.Util import Counter
 
-"""
-1. Random 128 bit data key is generated
-2. Generate random salt and create second key with
-   given password and PBKDF2
-3. Encrypt data key with user-generated key using 128-bit AES
-4. Hash user-generated key to check for correctness later
-5. Store salt, hash, iv, and data
-"""
-
-
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
                                      'Encrypt files using 128-bit AES')
-    parser.add_argument('filenames', nargs='+', help='Files to encrypt', type=str)
+    parser.add_argument('filenames', nargs='+', help='Files to encrypt',
+                        type=str)
     parser.add_argument('-p', '--password', required=True,
                         help='Password to encrypt with', type=str)
     parser.add_argument('-o', '--overwrite', required=False,
@@ -31,17 +22,14 @@ def make_parser():
                         help='Whether to delete original file')
     return parser
 
-
 def get_random_bytes(n):
     """Returns n bytes of randomness"""
     return Random.new().read(n)
-
 
 def generate_salt():
     """Generate an n-byte alnum salt with 190 bits of entropy"""
     alnum = ''.join(c for c in map(chr, range(256)) if c.isalnum())
     return ''.join(random.choice(alnum) for _ in range(32))
-
 
 def password_to_key(password):
     """Runs PBKDF2 with 100000 iterations on provided password.
@@ -60,7 +48,6 @@ def password_to_key(password):
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return salt, key
 
-
 def hash_key(key):
     """Hashes given key with one iteration of SHA256 and returns result
 
@@ -71,7 +58,6 @@ def hash_key(key):
       *  key_hash (byte str)
     """
     return SHA256.SHA256Hash(key).digest()
-
 
 def encrypt_file(key, data):
     """Encrypts data using AES-CTR with provided key and data
@@ -88,9 +74,7 @@ def encrypt_file(key, data):
     # Generate a new counter object for CTR mode
     counter = Counter.new(64, initial_value=1, prefix=iv)
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
-    # TODO: have try catch here
     return iv, cipher.encrypt(data)
-
 
 if __name__ == "__main__":
     cwd = os.getcwd()
@@ -98,7 +82,7 @@ if __name__ == "__main__":
     filenames = args.filenames
     password = args.password
     overwrite = args.overwrite
-    # Populate file streams
+    # Populate plaintexts from files
     plaintexts = []
     for filename in filenames:
         try:
@@ -107,11 +91,12 @@ if __name__ == "__main__":
             plaintexts.append((filename,
                                bytes(file.read(), 'utf-8')))
             file.close()
+            # Delete the original file if the option was set by user
             if overwrite:
                 os.remove(cwd + '/' + filename)
         except IOError:
             print("Given file: " + filename + " does not exist. Skipping")
-
+    # From each plaintexts create a .enc file
     for plaintext in plaintexts:
         # Generate salt, key, and key hash
         salt, key = password_to_key(password)
@@ -126,7 +111,9 @@ if __name__ == "__main__":
                  'iv': iv.hex(),
                  'ciphertext': ciphertext.hex()
         }), 'utf-8')
+        # Compute MAC
         mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
+        # Concatenate all necessary elements
         to_write = salt + key_hash + iv + mac + value
         new_file = open(cwd + '/' + plaintext[0] + '.enc', 'bw')
         new_file.write(binascii.hexlify(to_write))

@@ -9,33 +9,17 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto import Random
 from Crypto.Util import Counter
 
-"""
-Following best practice:
-1. Random 128 bit data key is generated
-2. Generate random salt and create second key with
-   given password and PBKDF2
-3. Encrypt data key with user-generated key
-4. Hash of user-generated key to check for correctness later
-5. Store salt, encrypted data key, hash, and data
-"""
-
-
 class CryptoError(Exception):
-    """Exception raised for errors incorrect passwords
-
-    Attributes:
-        expression -- input expression in which the error occurred
-        message -- explanation of the error
-    """
+    """Exception raised for errors related to message decryption"""
     def __init__(self, message):
         self.message = message
-
 
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
                                      'Decrypt files using 128-bit AES')
-    parser.add_argument('filenames', nargs='+', help='Files to decrypt', type=str)
+    parser.add_argument('filenames', nargs='+', help='Files to decrypt',
+                        type=str)
     parser.add_argument('-p', '--password', required=True,
                         help='Password to decrypt with', type=str)
     parser.add_argument('-r', '--remove', required=False,
@@ -43,22 +27,19 @@ def make_parser():
                         help='Delete ciphertext file')
     return parser
 
-
 def password_to_key(password, salt):
     """Runs PBKDF2 with 100000 iterations on provided password.
 
     Params:
       *  password (str): Password provided by user
-      *  salt (byte str): Salt that password was encrypted with
+      *  salt (byte str): Salt given by file
 
     Returns:
       *  key (byte str): Result of PBKDF2 function on user's password
     """
-    # 8-byte random salt
     key = PBKDF2(password, salt, dkLen=16, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return key
-
 
 def hash_key(key):
     """Hashes given key with one iteration of SHA256 and returns result
@@ -71,15 +52,15 @@ def hash_key(key):
     """
     return SHA256.SHA256Hash(key).digest()
 
-
 def decrypt_file(key, iv, ciphertext):
     """Encrypts data using AES-CTR with provided key and data"""
     # Generate a new counter object for CTR mode
     counter = Counter.new(64, initial_value=1, prefix=iv)
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
-    # TODO: have try catch here
-    return cipher.decrypt(ciphertext)
-
+    try:
+        return cipher.decrypt(ciphertext)
+    except:
+        raise CryptoError("Decryption failed")
 
 if __name__ == "__main__":
     cwd = os.getcwd()
@@ -87,7 +68,7 @@ if __name__ == "__main__":
     filenames = args.filenames
     password = args.password
     remove_ct = args.remove
-    # Populate file streams
+    # Populate ciphertexts from files
     ciphertexts = []
     for filename in filenames:
         try:
@@ -100,6 +81,7 @@ if __name__ == "__main__":
         except IOError:
             print("Given file: " + filename + " does not exist. Skipping")
         ciphertexts.append(file_contents)
+        # Delete the .enc file if the option was set by user
         if remove_ct:
             os.remove(cwd + '/' + filename)
     for ciphertext in ciphertexts:
