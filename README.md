@@ -20,3 +20,5 @@ All of the free file encryptors I found online either were way too feature-packe
 #### Random notes to keep in mind:
 * Doesn't support file paths so you have to be in the same directory as the file you're encrypt/decrypting
 * I use a large number of PBKDF2 iterations since personally the files I'm encrypting are small... you may want to change this
+* Currently only supports text files... Planning to allow for other file types
+  later
