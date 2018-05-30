@@ -3,6 +3,7 @@ import argparse
 import os
 import binascii
 import json
+import getpass
 from Crypto.Cipher import AES
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Protocol.KDF import PBKDF2
@@ -15,8 +16,6 @@ def make_parser():
                                      'Encrypt files using 128-bit AES')
     parser.add_argument('filenames', nargs='+', help='Files to encrypt',
                         type=str)
-    parser.add_argument('-p', '--password', required=True,
-                        help='Password to encrypt with', type=str)
     parser.add_argument('-o', '--overwrite', required=False,
                         action='store_true',
                         help='Whether to delete original file')
@@ -80,8 +79,8 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
     filenames = args.filenames
-    password = args.password
     overwrite = args.overwrite
+    password = getpass.getpass()
     # Populate plaintexts from files
     plaintexts = []
     for filename in filenames:

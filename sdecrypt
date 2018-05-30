@@ -3,6 +3,7 @@ import argparse
 import os
 import binascii
 import json
+import getpass
 from Crypto.Cipher import AES
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Protocol.KDF import PBKDF2
@@ -20,8 +21,6 @@ def make_parser():
                                      'Decrypt files using 128-bit AES')
     parser.add_argument('filenames', nargs='+', help='Files to decrypt',
                         type=str)
-    parser.add_argument('-p', '--password', required=True,
-                        help='Password to decrypt with', type=str)
     parser.add_argument('-r', '--remove', required=False,
                         action='store_true',
                         help='Delete ciphertext file')
@@ -66,8 +65,8 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
     filenames = args.filenames
-    password = args.password
     remove_ct = args.remove
+    password = getpass.getpass()
     # Populate ciphertexts from files
     ciphertexts = []
     for filename in filenames:
