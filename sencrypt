@@ -75,12 +75,8 @@ def encrypt_file(key, data):
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     return iv, cipher.encrypt(data)
 
-if __name__ == "__main__":
-    cwd = os.getcwd()
-    args = make_parser().parse_args()
-    filenames = args.filenames
-    overwrite = args.overwrite
-    password = getpass.getpass()
+def get_files(cwd, filenames):
+    """Return a list containing tuples of all filenames and plaintexts"""
     # Populate plaintexts from files
     plaintexts = []
     for filename in filenames:
@@ -90,11 +86,21 @@ if __name__ == "__main__":
             plaintexts.append((filename,
                                bytes(file.read(), 'utf-8')))
             file.close()
-            # Delete the original file if the option was set by user
-            if overwrite:
-                os.remove(cwd + '/' + filename)
         except IOError:
-            print("Given file: " + filename + " does not exist. Skipping")
+                print("Given file: " + filename + " does not exist. Skipping")
+        # Delete the original file if the option was set by user
+        if overwrite:
+            os.remove(cwd + '/' + filename)
+    return plaintexts
+
+if __name__ == "__main__":
+    # Get arguments
+    cwd = os.getcwd()
+    args = make_parser().parse_args()
+    filenames = args.filenames
+    overwrite = args.overwrite
+    password = getpass.getpass()
+    plaintexts = get_files(cwd, filenames)
     # From each plaintexts create a .enc file
     for plaintext in plaintexts:
         # Generate salt, key, and key hash

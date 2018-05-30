@@ -61,12 +61,8 @@ def decrypt_file(key, iv, ciphertext):
     except:
         raise CryptoError("Decryption failed")
 
-if __name__ == "__main__":
-    cwd = os.getcwd()
-    args = make_parser().parse_args()
-    filenames = args.filenames
-    remove_ct = args.remove
-    password = getpass.getpass()
+def get_files(cwd, filenames):
+    """Return a list containing all ciphertexts from files"""
     # Populate ciphertexts from files
     ciphertexts = []
     for filename in filenames:
@@ -83,6 +79,16 @@ if __name__ == "__main__":
         # Delete the .enc file if the option was set by user
         if remove_ct:
             os.remove(cwd + '/' + filename)
+    return ciphertexts
+
+if __name__ == "__main__":
+    # Get arguments
+    cwd = os.getcwd()
+    args = make_parser().parse_args()
+    filenames = args.filenames
+    remove_ct = args.remove
+    password = getpass.getpass()
+    ciphertexts = get_files(cwd, filenames)
     for ciphertext in ciphertexts:
         # Extract salt and key_hash to check if key is valid
         salt = ciphertext[:8]
