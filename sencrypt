@@ -119,9 +119,10 @@ if __name__ == "__main__":
         # Compute MAC
         mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
         # Concatenate all necessary elements
-        to_write = salt + key_hash + iv + mac + value
+        to_write = (salt + key_hash + iv + mac + value).encode('utf-8')
+        print(type(to_write))
         new_file = open(cwd + '/' + plaintext[0] + '.enc', 'bw')
-        new_file.write(binascii.hexlify(to_write))
+        new_file.write(str(to_write, 'utf-8'))
         new_file.write(bytes("\n", 'utf-8'))
         new_file.close()
         print("File: " + plaintext[0] + " encrypted!")
