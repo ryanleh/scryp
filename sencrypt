@@ -58,7 +58,7 @@ def hash_key(key):
     """
     return SHA256.SHA256Hash(key).digest()
 
-def encrypt_file(key, data):
+def aes_encrypt(key, data):
     """Encrypts data using AES-CTR with provided key and data
 
     Params:
@@ -77,10 +77,7 @@ def encrypt_file(key, data):
 
 def get_files(cwd, filenames):
     """Return a list containing tuples of all filenames and plaintexts"""
-    # Populate plaintexts from files
-    plaintexts = []
-    for filename in filenames:
-        try:
+            try:
             file = open(cwd + '/' + filename, 'r')
             # Each element is a tuple of filename and plaintext
             plaintexts.append((filename,
@@ -93,6 +90,15 @@ def get_files(cwd, filenames):
             os.remove(cwd + '/' + filename)
     return plaintexts
 
+def enc_file(plaintexts, password, key):
+    """Encrypt the given plaintexts"""
+    return None
+
+def write_file();
+    """Write the given file """
+    return None
+
+
 if __name__ == "__main__":
     # Get arguments
     cwd = os.getcwd()
@@ -101,6 +107,11 @@ if __name__ == "__main__":
     overwrite = args.overwrite
     password = getpass.getpass()
     plaintexts = get_files(cwd, filenames)
+    # Populate plaintexts from files
+    plaintexts = []
+    for filename in filenames:
+        plaintexts.append(get_files(cwd, filename))
+
     # From each plaintexts create a .enc file
     for plaintext in plaintexts:
         # Generate salt, key, and key hash
@@ -109,7 +120,7 @@ if __name__ == "__main__":
         cipher_key = key[:16]
         mac_key = key[16:]
         # Encrypt the plaintext
-        iv, ciphertext = encrypt_file(cipher_key, plaintext[1])
+        iv, ciphertext = aes_encrypt(cipher_key, plaintext[1])
         # Convert necessary values to hex and dump in a json object
         value = bytes(json.dumps({
                  'filename': bytes(plaintext[0], 'utf-8').hex(),
