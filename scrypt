@@ -37,12 +37,6 @@ def get_random_bytes(n):
     return Random.new().read(n)
 
 
-def generate_salt():
-    """Generate an n-byte alnum salt with 190 bits of entropy"""
-    alnum = ''.join(c for c in map(chr, range(256)) if c.isalnum())
-    return ''.join(random.choice(alnum) for _ in range(32))
-
-
 def password_to_key(password, salt=None):
     """Runs PBKDF2 with 100000 iterations on provided password.
 
@@ -99,20 +93,20 @@ def aes_decrypt(key, iv, ciphertext):
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     try:
         return cipher.decrypt(ciphertext)
-    # TODO: Check to make sure that PyCrypto actuall throws a ValueError
+    # TODO: Check to make sure that PyCrypto actually throws a ValueError
     except ValueError:
         raise CryptoError("Decryption failed")
 
 
-def get_files(cwd, filenames, remove, action):
+def get_files(cwd, filenames, remove, processor):
     """Return a list containing tuples of all filenames and plaintexts"""
     # Populate plaintexts from files
     files = []
     for filename in filenames:
         try:
-            file = open(cwd + '/' + filename, 'r')
+            file = open(cwd + '/' + filename, 'br')
             # Each element is a tuple of filename and plaintext
-            files.append((filename, action(file.read())))
+            files.append((filename, processor(file.read())))
             file.close()
         except IOError:
                 print("Given file: " + filename + " does not exist. Skipping")
@@ -132,11 +126,12 @@ def encryptor(password, file):
     # Encrypt the plaintext
     iv, ciphertext = aes_encrypt(cipher_key, file[1])
     # Convert necessary values to hex and dump in a json object
+    # TODO: Figure out if we want to keep utf-8 in some parts
     value = bytes(json.dumps({
-            'filename': bytes(file[0], 'utf-8').hex(),
+            'filename': bytes(file[0], 'unicode_escape').hex(),
             'iv': iv.hex(),
             'ciphertext': ciphertext.hex()
-            }), 'utf-8')
+            }), 'unicode_escape')
     # Compute MAC
     mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     # Concatenate all necessary elements
@@ -160,9 +155,9 @@ def decryptor(password, file):
     calc_mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     if mac != calc_mac:
         raise CryptoError("Message has been tampered with")
-    value = json.loads(str(value, 'utf-8'))
+    value = json.loads(str(value, 'unicode_escape'))
     # Decrypt file and write to the original filename
-    filename = str(binascii.unhexlify(value['filename']), 'utf-8')
+    filename = str(binascii.unhexlify(value['filename']), 'unicode_escape')
     plaintext = aes_decrypt(cipher_key, binascii.unhexlify(value['iv']),
                             binascii.unhexlify(value['ciphertext']))
     return filename, plaintext
@@ -177,22 +172,21 @@ if __name__ == "__main__":
     decrypt = args.decrypt
     password = getpass.getpass()
     # TODO: this work for now but make it work with things other than text
-    # TODO: Rename action
     if decrypt:
         # Function to process input files
-        def action(input):
+        def processor(input):
             return binascii.unhexlify(input.strip())
         # Function to apply to file contents
         modifier = decryptor
         # Function to write file
         def writer(filename, plaintext):
             with open(cwd + '/' + filename, 'w') as f:
-                f.write(str(plaintext, 'utf-8'))
+                f.write(str(plaintext, 'unicode_escape'))
             print("File: " + filename + " decrypted!")
     else:
         # Function to process input files
-        def action(input):
-            return bytes(input, 'utf-8')
+        def processor(input):
+            return bytes(input, 'unicode_escape')
         # Function to apply to file contents
         modifier = encryptor
         # Function to write file
@@ -201,7 +195,7 @@ if __name__ == "__main__":
                 f.write(binascii.hexlify(ciphertext))
                 f.write(b"\n")
             print("File: " + filename + " encrypted!")
-    files = get_files(cwd, filenames, remove, action)
+    files = get_files(cwd, filenames, remove, processor)
 
     # From each plaintexts create a .enc file
     for file in files:
