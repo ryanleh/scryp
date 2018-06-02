@@ -104,7 +104,7 @@ def get_files(cwd, filenames, remove, processor):
     files = []
     for filename in filenames:
         try:
-            file = open(cwd + '/' + filename, 'r')
+            file = open(cwd + '/' + filename, 'rb')
             # Each element is a tuple of filename and plaintext
             files.append((filename, processor(file.read())))
             file.close()
@@ -180,13 +180,13 @@ if __name__ == "__main__":
         modifier = decryptor
         # Function to write file
         def writer(filename, plaintext):
-            with open(cwd + '/' + filename, 'w') as f:
-                f.write(str(plaintext, 'utf-8'))
+            with open(cwd + '/' + filename, 'bw') as f:
+                f.write(plaintext)
             print("File: " + filename + " decrypted!")
     else:
         # Function to process input files
         def processor(input):
-            return bytes(input, 'utf-8')
+            return input
         # Function to apply to file contents
         modifier = encryptor
         # Function to write file
