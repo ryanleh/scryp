@@ -13,7 +13,7 @@ All of the free file encryptors I found online either were way too feature-packe
 
 #### Decryption works as follows:
 1. Apply PBKDF2-HMAC-SHA256 to user-provided password + salt in file to regenerate key
-2. Check that the hash of the new cipher key matches the file-provided hash
+2. Check that the hash of the new key matches the file-provided hash
 3. Verify the tag with re-derived K<sub>MAC</sub>
 4. Decrypt the file with re-derived K<sub>AES</sub> and given nonce
 
