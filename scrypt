@@ -15,6 +15,7 @@ class CryptoError(Exception):
     def __init__(self, message):
         self.message = message
 
+
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
@@ -30,16 +31,19 @@ def make_parser():
                         help='Remove original file')
     return parser
 
+
 def get_random_bytes(n):
     """Returns n bytes of randomness"""
     return Random.new().read(n)
+
 
 def generate_salt():
     """Generate an n-byte alnum salt with 190 bits of entropy"""
     alnum = ''.join(c for c in map(chr, range(256)) if c.isalnum())
     return ''.join(random.choice(alnum) for _ in range(32))
 
-def password_to_key(password):
+
+def password_to_key(password, salt=None):
     """Runs PBKDF2 with 100000 iterations on provided password.
 
     Params:
@@ -50,11 +54,13 @@ def password_to_key(password):
       *  key (byte str): Result of PBKDF2 function on user's password
     """
     # 8-byte random salt
-    salt = get_random_bytes(8)
+    if not salt:
+        salt = get_random_bytes(8)
     # You'll probably want to change the iteration count to something smaller
     key = PBKDF2(password, salt, dkLen=16, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return salt, key
+
 
 def hash_key(key):
     """Hashes given key with one iteration of SHA256 and returns result
@@ -66,6 +72,7 @@ def hash_key(key):
       *  key_hash (byte str)
     """
     return SHA256.SHA256Hash(key).digest()
+
 
 def aes_encrypt(key, data):
     """Encrypts data using AES-CTR with provided key and data
@@ -84,6 +91,7 @@ def aes_encrypt(key, data):
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     return iv, cipher.encrypt(data)
 
+
 def aes_decrypt(key, iv, ciphertext):
     """Encrypts data using AES-CTR with provided key and data"""
     # Generate a new counter object for CTR mode
@@ -91,8 +99,10 @@ def aes_decrypt(key, iv, ciphertext):
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     try:
         return cipher.decrypt(ciphertext)
-    except:
+    # TODO: Check to make sure that PyCrypto actuall throws a ValueError
+    except ValueError:
         raise CryptoError("Decryption failed")
+
 
 def get_files(cwd, filenames, remove, action):
     """Return a list containing tuples of all filenames and plaintexts"""
@@ -111,7 +121,8 @@ def get_files(cwd, filenames, remove, action):
             os.remove(cwd + '/' + filename)
     return files
 
-def encrypt(password, file):
+
+def encryptor(password, file):
     """Encrypts the given file with the given password"""
     # Generate salt, key, and key hash
     salt, key = password_to_key(password)
@@ -129,31 +140,32 @@ def encrypt(password, file):
     # Compute MAC
     mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     # Concatenate all necessary elements
-    return file[0], salt + key_hash + iv + mac + value
+    return file[0], salt + key_hash + mac + value
 
-def decrypt(password, file):
+
+def decryptor(password, file):
     """Decrypts the given file with the given password"""
     ciphertext = file[1]
     # Extract salt and key_hash to check if key is valid
     salt = ciphertext[:8]
     key_hash = ciphertext[8:40]
-    given_key = password_to_key(password, salt)
+    given_key = password_to_key(password, salt)[1]
     if hash_key(given_key) != key_hash:
         raise CryptoError("Invalid password")
     # Extract remaining values and make sure MAC is valid
     cipher_key = given_key[:16]
     mac_key = given_key[16:]
-    iv = ciphertext[40:48]
-    mac = ciphertext[48:80]
-    value = ciphertext[80:]
+    mac = ciphertext[40:72]
+    value = ciphertext[72:]
     calc_mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     if mac != calc_mac:
         raise CryptoError("Message has been tampered with")
     value = json.loads(str(value, 'utf-8'))
     # Decrypt file and write to the original filename
     filename = str(binascii.unhexlify(value['filename']), 'utf-8')
-    plaintext = decrypt_file(cipher_key, binascii.unhexlify(value['iv']),
-                             binascii.unhexlify(value['ciphertext']))
+    plaintext = aes_decrypt(cipher_key, binascii.unhexlify(value['iv']),
+                            binascii.unhexlify(value['ciphertext']))
+    return filename, plaintext
 
 
 if __name__ == "__main__":
@@ -171,26 +183,26 @@ if __name__ == "__main__":
         def action(input):
             return binascii.unhexlify(input.strip())
         # Function to apply to file contents
-        modifier = encrypt
+        modifier = decryptor
         # Function to write file
         def writer(filename, plaintext):
             with open(cwd + '/' + filename, 'w') as f:
                 f.write(str(plaintext, 'utf-8'))
+            print("File: " + filename + " decrypted!")
     else:
         # Function to process input files
         def action(input):
             return bytes(input, 'utf-8')
         # Function to apply to file contents
-        modifier = decrypt
+        modifier = encryptor
         # Function to write file
-        def writer(filename, data):
+        def writer(filename, ciphertext):
             with open(cwd + '/' + filename + '.enc', 'bw') as f:
-                f.write(binascii.hexlify(to_write))
-
+                f.write(binascii.hexlify(ciphertext))
+                f.write(b"\n")
+            print("File: " + filename + " encrypted!")
     files = get_files(cwd, filenames, remove, action)
 
     # From each plaintexts create a .enc file
     for file in files:
-        filename, to_write = encrypt(password, file)
-        writer(filename, to_write)
-        print("File: " + filename + " encrypted!")
+        writer(*modifier(password, file))
