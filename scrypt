@@ -79,9 +79,9 @@ def aes_encrypt(key, data):
       *  iv (byte str): 8-bytes of randomness
       *  encrypted_data (byte str): Result of AES-CTR
     """
-    iv = get_random_bytes(8)
+    iv = get_random_bytes(12)
     # Generate a new counter object for CTR mode
-    counter = Counter.new(64, initial_value=1, prefix=iv)
+    counter = Counter.new(32, initial_value=1, prefix=iv)
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     return iv, cipher.encrypt(data)
 
@@ -89,7 +89,7 @@ def aes_encrypt(key, data):
 def aes_decrypt(key, iv, ciphertext):
     """Encrypts data using AES-CTR with provided key and data"""
     # Generate a new counter object for CTR mode
-    counter = Counter.new(64, initial_value=1, prefix=iv)
+    counter = Counter.new(32, initial_value=1, prefix=iv)
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     try:
         return cipher.decrypt(ciphertext)
