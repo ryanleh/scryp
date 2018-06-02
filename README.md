@@ -6,7 +6,7 @@ All of the free file encryptors I found online either were way too feature-packe
 #### Encryption works as follows:  
 1. Generate 32-byte key by applying PBKDF2-HMAC-SHA256 to user-provided password + random salt
 2. Split key into 16-byte K_{AES} and K_{MAC}
-3. Encrypt data under K_{AES} using 128-bit AES-CTR with random 8-byte IV
+3. Encrypt data under K_{AES} using 128-bit AES-CTR with random 12-byte nonce and 4-byte counter
 4. Generate tag of encrypted data under K_{MAC} using HMAC-SHA256
 5. Hash K_{AES} with SHA256
 6. Store salt, hash, IV, MAC, and ciphertext
