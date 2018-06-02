@@ -51,7 +51,7 @@ def password_to_key(password, salt=None):
     if not salt:
         salt = get_random_bytes(8)
     # You'll probably want to change the iteration count to something smaller
-    key = PBKDF2(password, salt, dkLen=16, count=100000,
+    key = PBKDF2(password, salt, dkLen=32, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return salt, key
 
@@ -104,7 +104,7 @@ def get_files(cwd, filenames, remove, processor):
     files = []
     for filename in filenames:
         try:
-            file = open(cwd + '/' + filename, 'br')
+            file = open(cwd + '/' + filename, 'r')
             # Each element is a tuple of filename and plaintext
             files.append((filename, processor(file.read())))
             file.close()
@@ -128,10 +128,10 @@ def encryptor(password, file):
     # Convert necessary values to hex and dump in a json object
     # TODO: Figure out if we want to keep utf-8 in some parts
     value = bytes(json.dumps({
-            'filename': bytes(file[0], 'unicode_escape').hex(),
+            'filename': bytes(file[0], 'utf-8').hex(),
             'iv': iv.hex(),
             'ciphertext': ciphertext.hex()
-            }), 'unicode_escape')
+            }), 'utf-8')
     # Compute MAC
     mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     # Concatenate all necessary elements
@@ -155,9 +155,9 @@ def decryptor(password, file):
     calc_mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     if mac != calc_mac:
         raise CryptoError("Message has been tampered with")
-    value = json.loads(str(value, 'unicode_escape'))
+    value = json.loads(str(value, 'utf-8'))
     # Decrypt file and write to the original filename
-    filename = str(binascii.unhexlify(value['filename']), 'unicode_escape')
+    filename = str(binascii.unhexlify(value['filename']), 'utf-8')
     plaintext = aes_decrypt(cipher_key, binascii.unhexlify(value['iv']),
                             binascii.unhexlify(value['ciphertext']))
     return filename, plaintext
@@ -181,12 +181,12 @@ if __name__ == "__main__":
         # Function to write file
         def writer(filename, plaintext):
             with open(cwd + '/' + filename, 'w') as f:
-                f.write(str(plaintext, 'unicode_escape'))
+                f.write(str(plaintext, 'utf-8'))
             print("File: " + filename + " decrypted!")
     else:
         # Function to process input files
         def processor(input):
-            return bytes(input, 'unicode_escape')
+            return bytes(input, 'utf-8')
         # Function to apply to file contents
         modifier = encryptor
         # Function to write file

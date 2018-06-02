@@ -4,11 +4,11 @@
 All of the free file encryptors I found online either were way too feature-packed or didn't handle encrypting multiple files well so I decided to make my own.  
 
 #### Encryption works as follows:  
-1. Generate random 128 bit cipher key
-2. Generate random salt and create second key by applying PBKDF2-HMAC-SHA256 to user-provided password + salt
+1. Generate key by applying PBKDF2-HMAC-SHA256 to user-provided password + random salt
+2. Split
 3. Encrypt data key with cipher key using 128-bit AES-CTR
 4. Generate MAC of ciphertext
-5. Hash cipher key 
+5. Hash cipher key
 6. Store salt, hash, IV, MAC, and ciphertext
 
 #### Decryption works as follows:
