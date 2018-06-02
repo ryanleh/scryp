@@ -7,9 +7,9 @@ All of the free file encryptors I found online either were way too feature-packe
 1. Generate 32-byte key by applying PBKDF2-HMAC-SHA256 to user-provided password + random salt
 2. Split key into 16-byte K<sub>AES</sub> and K<sub>MAC</sub>
 3. Encrypt data under K<sub>AES</sub> using 128-bit AES-CTR with random 12-byte nonce and 4-byte counter &asymp; 68Gb encryption limit
-4. Generate tag of encrypted data under K<sub>MAC</sub> using HMAC-SHA256
+4. Generate tag of {filename || nonce || encrypted data} under K<sub>MAC</sub> using HMAC-SHA256
 5. Hash K<sub>AES</sub> || K<sub>MAC</sub> with SHA256
-6. Store salt, hash, nonce, tag, and encrypted data
+6. Store salt, hash, tag, filename, nonce and encrypted data
 
 #### Decryption works as follows:
 1. Apply PBKDF2-HMAC-SHA256 to user-provided password + salt in file to regenerate key
