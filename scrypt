@@ -125,17 +125,12 @@ def encryptor(password, file):
     mac_key = key[16:]
     # Encrypt the plaintext
     nonce, ciphertext = aes_encrypt(cipher_key, file[1])
-    # Convert necessary values to hex and dump in a json object
-    # TODO: Figure out if we want to keep utf-8 in some parts
-    value = bytes(json.dumps({
-            'filename': bytes(file[0], 'utf-8').hex(),
-            'nonce': nonce.hex(),
-            'ciphertext': ciphertext.hex()
-            }), 'utf-8')
+    # Forward shalshes aren't allowed in filenames so use that to differentiate
+    encrypted_file = bytes(file[0], 'utf-8') + b"/" + nonce + ciphertext
     # Compute MAC
-    mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
+    mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
     # Concatenate all necessary elements
-    return file[0], salt + key_hash + mac + value
+    return file[0], salt + key_hash + mac + encrypted_file
 
 
 def decryptor(password, file):
@@ -151,15 +146,19 @@ def decryptor(password, file):
     cipher_key = given_key[:16]
     mac_key = given_key[16:]
     mac = ciphertext[40:72]
-    value = ciphertext[72:]
-    calc_mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
+    encrypted_file = ciphertext[72:]
+    calc_mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
+    # TODO: constant time comparison
     if mac != calc_mac:
         raise CryptoError("Message has been tampered with")
-    value = json.loads(str(value, 'utf-8'))
+    # Extract filename, nonce, and ciphertext
+    filename = encrypted_file.split(b"/")[0]
+    # There's an extra +1 because of the forward slash
+    nonce = encrypted_file[len(filename)+1:len(filename)+13]
+    ciphertext = encrypted_file[len(filename)+13:]
     # Decrypt file and write to the original filename
-    filename = str(binascii.unhexlify(value['filename']), 'utf-8')
-    plaintext = aes_decrypt(cipher_key, binascii.unhexlify(value['nonce']),
-                            binascii.unhexlify(value['ciphertext']))
+    filename = str(filename, 'utf-8')
+    plaintext = aes_decrypt(cipher_key, nonce, ciphertext)
     return filename, plaintext
 
 
@@ -175,7 +174,7 @@ if __name__ == "__main__":
     if decrypt:
         # Function to process input files
         def processor(input):
-            return binascii.unhexlify(input.strip())
+            return input.strip()
         # Function to apply to file contents
         modifier = decryptor
         # Function to write file
@@ -192,7 +191,7 @@ if __name__ == "__main__":
         # Function to write file
         def writer(filename, ciphertext):
             with open(cwd + '/' + filename + '.enc', 'bw') as f:
-                f.write(binascii.hexlify(ciphertext))
+                f.write(ciphertext)
                 f.write(b"\n")
             print("File: " + filename + " encrypted!")
     files = get_files(cwd, filenames, remove, processor)
