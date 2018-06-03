@@ -3,17 +3,16 @@ import argparse
 import os
 import sys
 import getpass
-from Crypto.Cipher import AES
-from Crypto.Hash import HMAC, SHA256
-from Crypto.Protocol.KDF import PBKDF2
-from Crypto import Random
-from Crypto.Util import Counter
 
 
 class CryptoError(Exception):
     """Exception raised for errors related to message decryption"""
     def __init__(self, message):
         self.message = message
+
+
+def fetch_imports():
+    """Attempts to import PyCrypto libraries"""
 
 
 def make_parser():
@@ -101,7 +100,7 @@ def aes_decrypt(key, nonce, ciphertext):
         raise CryptoError("Decryption failed")
 
 
-def get_files(cwd, filenames, remove, processor):
+def get_files(cwd, filenames, remove):
     """Return a list containing tuples of all filenames and plaintexts"""
     # Populate plaintexts from files
     files = []
@@ -109,7 +108,7 @@ def get_files(cwd, filenames, remove, processor):
         try:
             file = open(cwd + '/' + filename, 'rb')
             # Each element is a tuple of filename and plaintext
-            files.append((filename, processor(file.read())))
+            files.append((filename, file.read()))
             file.close()
         except IOError:
                 print("Given file: " + filename + " does not exist. Skipping")
@@ -170,6 +169,16 @@ if __name__ == "__main__":
     if sys.hexversion < 0x3000000:
         print("Please use python3")
         sys.exit(0)
+    # Attempt to import PyCrypto
+    try:
+        from Crypto.Cipher import AES
+        from Crypto.Hash import HMAC, SHA256
+        from Crypto.Protocol.KDF import PBKDF2
+        from Crypto import Random
+        from Crypto.Util import Counter
+    except ImportError:
+        print("scryp requires PyCrypto. Install with: "
+              "pip3 install pycrypto")
     # Get arguments
     cwd = os.getcwd()
     args = make_parser().parse_args()
@@ -178,9 +187,6 @@ if __name__ == "__main__":
     decrypt = args.decrypt
     password = getpass.getpass()
     if decrypt:
-        # Function to process input files
-        def processor(input):
-            return input.strip()
         # Function to apply to file contents
         modifier = decryptor
         # Function to write file
@@ -189,19 +195,13 @@ if __name__ == "__main__":
                 f.write(plaintext)
             print("File: " + filename + " decrypted!")
     else:
-        # Function to process input files
-        def processor(input):
-            return input
         # Function to apply to file contents
         modifier = encryptor
         # Function to write file
         def writer(filename, ciphertext):
             with open(cwd + '/' + filename + '.enc', 'bw') as f:
                 f.write(ciphertext)
-                f.write(b"\n")
             print("File: " + filename + " encrypted!")
-    files = get_files(cwd, filenames, remove, processor)
-
-    # From each plaintexts create a .enc file
+    files = get_files(cwd, filenames, remove)
     for file in files:
         writer(*modifier(password, file))
