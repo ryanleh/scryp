@@ -179,13 +179,15 @@ if __name__ == "__main__":
     except ImportError:
         print("scryp requires PyCrypto. Install with: "
               "pip3 install pycrypto")
-    # Get arguments
+    # Get arguments and files
     cwd = os.getcwd()
     args = make_parser().parse_args()
     filenames = args.filenames
     remove = args.remove
     decrypt = args.decrypt
     password = getpass.getpass()
+    files = get_files(cwd, filenames, remove)
+    # Set modifer/writer functios depending on user-requested action
     if decrypt:
         # Function to apply to file contents
         modifier = decryptor
@@ -202,6 +204,6 @@ if __name__ == "__main__":
             with open(cwd + '/' + filename + '.enc', 'bw') as f:
                 f.write(ciphertext)
             print("File: " + filename + " encrypted!")
-    files = get_files(cwd, filenames, remove)
+    # Encrypt/decrypt each file
     for file in files:
         writer(*modifier(password, file))
