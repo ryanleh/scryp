@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 import argparse
 import os
-import binascii
-import json
+import sys
 import getpass
 from Crypto.Cipher import AES
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto import Random
 from Crypto.Util import Counter
+
 
 class CryptoError(Exception):
     """Exception raised for errors related to message decryption"""
@@ -40,7 +40,7 @@ def get_random_bytes(n):
 def constant_time_comparison(str1, str2):
     """Compares two strings in constant times to avoid timing attacks"""
     if len(str1) != len(str2):
-        raise CryptoError("File is incorrect format")
+        raise CryptoError("File is of incorrect format")
     is_equal = True
     for a, b in zip(str1, str2):
         if a != b:
@@ -49,18 +49,10 @@ def constant_time_comparison(str1, str2):
 
 
 def password_to_key(password, salt=None):
-    """Runs PBKDF2 with 100000 iterations on provided password.
-
-    Params:
-      *  password (str): Password provided by user
-
-    Returns:
-      *  salt (byte str): random 8-bytes
-      *  key (byte str): Result of PBKDF2 function on user's password
-    """
+    """Runs PBKDF2 with 100000 iterations on provided password."""
     # 8-byte random salt
     if not salt:
-        salt = get_random_bytes(8)
+        salt = get_random_bytes(16)
     # You'll probably want to change the iteration count to something smaller
     key = PBKDF2(password, salt, dkLen=32, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
@@ -148,16 +140,16 @@ def decryptor(password, file):
     """Decrypts the given file with the given password"""
     ciphertext = file[1]
     # Extract salt and key_hash to check if key is valid
-    salt = ciphertext[:8]
-    key_hash = ciphertext[8:40]
+    salt = ciphertext[:16]
+    key_hash = ciphertext[16:48]
     given_key = password_to_key(password, salt)[1]
     if not constant_time_comparison(hash_key(given_key), key_hash):
         raise CryptoError("Invalid password")
     # Extract remaining values and make sure MAC is valid
     cipher_key = given_key[:16]
     mac_key = given_key[16:]
-    mac = ciphertext[40:72]
-    encrypted_file = ciphertext[72:]
+    mac = ciphertext[48:80]
+    encrypted_file = ciphertext[80:]
     calc_mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
     # TODO: constant time comparison
     if not constant_time_comparison(mac, calc_mac):
@@ -174,6 +166,10 @@ def decryptor(password, file):
 
 
 if __name__ == "__main__":
+    # Confirm that user is running python3
+    if sys.hexversion < 0x3000000:
+        print("Please use python3")
+        sys.exit(0)
     # Get arguments
     cwd = os.getcwd()
     args = make_parser().parse_args()
