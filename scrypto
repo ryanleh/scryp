@@ -88,13 +88,13 @@ def get_files(cwd, filenames, remove):
 
 def encryptor(password, file):
     """Encrypts the given file with the given password"""
-    filename = file[0]
-    plaintext = file[1]
+    filename, plaintext = file
     # Generate salt, key, and key hash
     salt, key = password_to_key(password)
     key_hash = SHA256.SHA256Hash(key).digest()
     cipher_key = key[:16]
     mac_key = key[16:]
+
     # Encrypt the plaintext
     nonce, ciphertext = aes_encrypt(cipher_key, plaintext)
     # Forward shalshes aren't allowed in filenames so use that as a seperator
@@ -107,14 +107,15 @@ def encryptor(password, file):
 
 def decryptor(password, file):
     """Decrypts the given file with the given password"""
-    enc_contents = file[1]
+    _, enc_contents = file
     # Extract salt and key_hash to check if key is valid
     salt = enc_contents[:16]
     key_hash = enc_contents[16:48]
-    given_key = password_to_key(password, salt)[1]
+    _, given_key = password_to_key(password, salt)
     given_key_hash = SHA256.SHA256Hash(given_key).digest()
     if not constant_time_comparison(given_key_hash, key_hash):
         raise CryptoError("Invalid password")
+
     # Extract remaining values and make sure MAC is valid
     cipher_key = given_key[:16]
     mac_key = given_key[16:]
@@ -123,11 +124,13 @@ def decryptor(password, file):
     calc_mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
     if not constant_time_comparison(tag, calc_mac):
         raise CryptoError("Message has been tampered with")
+
     # Extract filename, nonce, and ciphertext
     filename = encrypted_file.split(b"/")[0]
     # There's an extra +1 because of the forward slash
     nonce = encrypted_file[len(filename)+1:len(filename)+13]
     ciphertext = encrypted_file[len(filename)+13:]
+
     # Decrypt file and write to the original filename
     filename = str(filename, 'utf-8')
     plaintext = aes_decrypt(cipher_key, nonce, ciphertext)
@@ -139,6 +142,7 @@ if __name__ == "__main__":
     if sys.hexversion < 0x3000000:
         print("Please use python3")
         sys.exit(0)
+
     # Attempt to import PyCrypto
     try:
         from Crypto.Cipher import AES
@@ -147,8 +151,9 @@ if __name__ == "__main__":
         from Crypto import Random
         from Crypto.Util import Counter
     except ImportError:
-        print("scryp requires PyCrypto. Install with: "
+        print("scrypto requires PyCrypto. Install with: "
               "pip3 install pycrypto")
+
     # Get arguments and files
     cwd = os.getcwd()
     args = make_parser().parse_args()
@@ -157,6 +162,7 @@ if __name__ == "__main__":
     decrypt = args.decrypt
     password = getpass.getpass()
     files = get_files(cwd, filenames, remove)
+
     # Set modifer/writer functios depending on user-requested action
     if decrypt:
         # Function to apply to file contents
@@ -174,6 +180,7 @@ if __name__ == "__main__":
             with open(cwd + '/' + filename + '.enc', 'bw') as f:
                 f.write(ciphertext)
             print("File: " + filename + " encrypted!")
+
     # Encrypt/decrypt each file
     for file in files:
         writer(*modifier(password, file))
