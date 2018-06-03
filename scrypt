@@ -11,10 +11,6 @@ class CryptoError(Exception):
         self.message = message
 
 
-def fetch_imports():
-    """Attempts to import PyCrypto libraries"""
-
-
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description=
