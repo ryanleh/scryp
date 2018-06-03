@@ -48,8 +48,7 @@ def constant_time_comparison(str1, str2):
 
 
 def password_to_key(password, salt=None):
-    """Runs PBKDF2 with 100000 iterations on provided password."""
-    # 8-byte random salt
+    """Runs PBKDF2 with 100000 iterations on provided password"""
     if not salt:
         salt = get_random_bytes(16)
     # You'll probably want to change the iteration count to something smaller
@@ -58,56 +57,29 @@ def password_to_key(password, salt=None):
     return salt, key
 
 
-def hash_key(key):
-    """Hashes given key with one iteration of SHA256 and returns result
-
-    Params:
-      *  key (byte str): Result of PBKDF2 function on user's password
-
-    Returns:
-      *  key_hash (byte str)
-    """
-    return SHA256.SHA256Hash(key).digest()
-
-
 def aes_encrypt(key, data):
-    """Encrypts data using AES-CTR with provided key and data
-
-    Params:
-      *  key (byte str): Result of PBKDF2 function on user's password
-      *  data (byte str): byte encoding of file contents
-
-    Returns:
-      *  nonce (byte str): 8-bytes of randomness
-      *  encrypted_data (byte str): Result of AES-CTR
-    """
+    """Encrypts data using AES-CTR with provided key and data"""
     nonce = get_random_bytes(12)
-    # Generate a new counter object for CTR mode
     counter = Counter.new(32, initial_value=1, prefix=nonce)
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
     return nonce, cipher.encrypt(data)
 
 
 def aes_decrypt(key, nonce, ciphertext):
-    """Encrypts data using AES-CTR with provided key and data"""
-    # Generate a new counter object for CTR mode
+    """Decrypts ciphertext using AES-CTR with provided key and nonce"""
     counter = Counter.new(32, initial_value=1, prefix=nonce)
     cipher = AES.new(key, AES.MODE_CTR, counter=counter)
-    try:
-        return cipher.decrypt(ciphertext)
-    # TODO: Check to make sure that PyCrypto actually throws a ValueError
-    except ValueError:
-        raise CryptoError("Decryption failed")
+    # TODO:  Do I need a try/catch here?
+    return cipher.decrypt(ciphertext)
 
 
 def get_files(cwd, filenames, remove):
     """Return a list containing tuples of all filenames and plaintexts"""
-    # Populate plaintexts from files
     files = []
     for filename in filenames:
         try:
             file = open(cwd + '/' + filename, 'rb')
-            # Each element is a tuple of filename and plaintext
+            # Each element is a tuple of filename and contents
             files.append((filename, file.read()))
             file.close()
         except IOError:
@@ -120,38 +92,40 @@ def get_files(cwd, filenames, remove):
 
 def encryptor(password, file):
     """Encrypts the given file with the given password"""
+    filename = file[0]
+    plaintext = file[1]
     # Generate salt, key, and key hash
     salt, key = password_to_key(password)
-    key_hash = hash_key(key)
+    key_hash = SHA256.SHA256Hash(key).digest()
     cipher_key = key[:16]
     mac_key = key[16:]
     # Encrypt the plaintext
-    nonce, ciphertext = aes_encrypt(cipher_key, file[1])
-    # Forward shalshes aren't allowed in filenames so use that to differentiate
-    encrypted_file = bytes(file[0], 'utf-8') + b"/" + nonce + ciphertext
+    nonce, ciphertext = aes_encrypt(cipher_key, plaintext)
+    # Forward shalshes aren't allowed in filenames so use that as a seperator
+    encrypted_file = bytes(filename, 'utf-8') + b"/" + nonce + ciphertext
     # Compute MAC
     mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
     # Concatenate all necessary elements
-    return file[0], salt + key_hash + mac + encrypted_file
+    return filename, salt + key_hash + mac + encrypted_file
 
 
 def decryptor(password, file):
     """Decrypts the given file with the given password"""
-    ciphertext = file[1]
+    enc_contents = file[1]
     # Extract salt and key_hash to check if key is valid
-    salt = ciphertext[:16]
-    key_hash = ciphertext[16:48]
+    salt = enc_contents[:16]
+    key_hash = enc_contents[16:48]
     given_key = password_to_key(password, salt)[1]
-    if not constant_time_comparison(hash_key(given_key), key_hash):
+    given_key_hash = SHA256.SHA256Hash(given_key).digest()
+    if not constant_time_comparison(given_key_hash, key_hash):
         raise CryptoError("Invalid password")
     # Extract remaining values and make sure MAC is valid
     cipher_key = given_key[:16]
     mac_key = given_key[16:]
-    mac = ciphertext[48:80]
-    encrypted_file = ciphertext[80:]
+    tag = enc_contents[48:80]
+    encrypted_file = enc_contents[80:]
     calc_mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
-    # TODO: constant time comparison
-    if not constant_time_comparison(mac, calc_mac):
+    if not constant_time_comparison(tag, calc_mac):
         raise CryptoError("Message has been tampered with")
     # Extract filename, nonce, and ciphertext
     filename = encrypted_file.split(b"/")[0]
