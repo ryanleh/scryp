@@ -1,0 +1,186 @@
+#!/usr/bin/python3
+import argparse
+import os
+import sys
+import getpass
+
+
+class CryptoError(Exception):
+    """Exception raised for errors related to message decryption"""
+    def __init__(self, message):
+        self.message = message
+
+
+def make_parser():
+    """Builds ArgumentParser Object"""
+    parser = argparse.ArgumentParser(description=
+                                     'Encrypt files using 128-bit AES')
+    parser.add_argument('filenames', nargs='+',
+                        help='Files to encrypt/decrypt (Default is encrypt)',
+                        type=str)
+    parser.add_argument('-d', '--decrypt', required=False,
+                        action='store_true',
+                        help='Decrypt file')
+    parser.add_argument('-r', '--remove', required=False,
+                        action='store_true',
+                        help='Remove original file')
+    return parser
+
+
+def get_random_bytes(n):
+    """Returns n bytes of randomness"""
+    return Random.new().read(n)
+
+
+def constant_time_comparison(str1, str2):
+    """Compares two strings in constant times to avoid timing attacks"""
+    if len(str1) != len(str2):
+        raise CryptoError("File is of incorrect format")
+    is_equal = True
+    for a, b in zip(str1, str2):
+        if a != b:
+            is_equal = False
+    return is_equal
+
+
+def password_to_key(password, salt=None):
+    """Runs PBKDF2 with 100000 iterations on provided password"""
+    if not salt:
+        salt = get_random_bytes(16)
+    # You'll probably want to change the iteration count to something smaller
+    key = PBKDF2(password, salt, dkLen=32, count=100000,
+                 prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
+    return salt, key
+
+
+def aes_encrypt(key, data):
+    """Encrypts data using AES-CTR with provided key and data"""
+    nonce = get_random_bytes(12)
+    counter = Counter.new(32, initial_value=1, prefix=nonce)
+    cipher = AES.new(key, AES.MODE_CTR, counter=counter)
+    return nonce, cipher.encrypt(data)
+
+
+def aes_decrypt(key, nonce, ciphertext):
+    """Decrypts ciphertext using AES-CTR with provided key and nonce"""
+    counter = Counter.new(32, initial_value=1, prefix=nonce)
+    cipher = AES.new(key, AES.MODE_CTR, counter=counter)
+    # TODO:  Do I need a try/catch here?
+    return cipher.decrypt(ciphertext)
+
+
+def get_files(cwd, filenames, remove):
+    """Return a list containing tuples of all filenames and plaintexts"""
+    files = []
+    for filename in filenames:
+        try:
+            file = open(cwd + '/' + filename, 'rb')
+            # Each element is a tuple of filename and contents
+            files.append((filename, file.read()))
+            file.close()
+        except IOError:
+                print("Given file: " + filename + " does not exist. Skipping")
+        # Delete the original file if the option was set by user
+        if remove:
+            os.remove(cwd + '/' + filename)
+    return files
+
+
+def encryptor(password, file):
+    """Encrypts the given file with the given password"""
+    filename, plaintext = file
+    # Generate salt, key, and key hash
+    salt, key = password_to_key(password)
+    key_hash = SHA256.SHA256Hash(key).digest()
+    cipher_key = key[:16]
+    mac_key = key[16:]
+
+    # Encrypt the plaintext
+    nonce, ciphertext = aes_encrypt(cipher_key, plaintext)
+    # Forward shalshes aren't allowed in filenames so use that as a seperator
+    encrypted_file = bytes(filename, 'utf-8') + b"/" + nonce + ciphertext
+    # Compute MAC
+    mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
+    # Concatenate all necessary elements
+    return filename, salt + key_hash + mac + encrypted_file
+
+
+def decryptor(password, file):
+    """Decrypts the given file with the given password"""
+    _, enc_contents = file
+    # Extract salt and key_hash to check if key is valid
+    salt = enc_contents[:16]
+    key_hash = enc_contents[16:48]
+    _, given_key = password_to_key(password, salt)
+    given_key_hash = SHA256.SHA256Hash(given_key).digest()
+    if not constant_time_comparison(given_key_hash, key_hash):
+        raise CryptoError("Invalid password")
+
+    # Extract remaining values and make sure MAC is valid
+    cipher_key = given_key[:16]
+    mac_key = given_key[16:]
+    tag = enc_contents[48:80]
+    encrypted_file = enc_contents[80:]
+    calc_mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
+    if not constant_time_comparison(tag, calc_mac):
+        raise CryptoError("Message has been tampered with")
+
+    # Extract filename, nonce, and ciphertext
+    filename = encrypted_file.split(b"/")[0]
+    # There's an extra +1 because of the forward slash
+    nonce = encrypted_file[len(filename)+1:len(filename)+13]
+    ciphertext = encrypted_file[len(filename)+13:]
+
+    # Decrypt file and write to the original filename
+    filename = str(filename, 'utf-8')
+    plaintext = aes_decrypt(cipher_key, nonce, ciphertext)
+    return filename, plaintext
+
+
+if __name__ == "__main__":
+    # Confirm that user is running python3
+    if sys.hexversion < 0x3000000:
+        print("Please use python3")
+        sys.exit(0)
+
+    # Attempt to import PyCrypto
+    try:
+        from Crypto.Cipher import AES
+        from Crypto.Hash import HMAC, SHA256
+        from Crypto.Protocol.KDF import PBKDF2
+        from Crypto import Random
+        from Crypto.Util import Counter
+    except ImportError:
+        print("scrypto requires PyCrypto. Install with: "
+              "pip3 install pycrypto")
+
+    # Get arguments and files
+    cwd = os.getcwd()
+    args = make_parser().parse_args()
+    filenames = args.filenames
+    remove = args.remove
+    decrypt = args.decrypt
+    password = getpass.getpass()
+    files = get_files(cwd, filenames, remove)
+
+    # Set modifer/writer functios depending on user-requested action
+    if decrypt:
+        # Function to apply to file contents
+        modifier = decryptor
+        # Function to write file
+        def writer(filename, plaintext):
+            with open(cwd + '/' + filename, 'bw') as f:
+                f.write(plaintext)
+            print("File: " + filename + " decrypted!")
+    else:
+        # Function to apply to file contents
+        modifier = encryptor
+        # Function to write file
+        def writer(filename, ciphertext):
+            with open(cwd + '/' + filename + '.enc', 'bw') as f:
+                f.write(ciphertext)
+            print("File: " + filename + " encrypted!")
+
+    # Encrypt/decrypt each file
+    for file in files:
+        writer(*modifier(password, file))
