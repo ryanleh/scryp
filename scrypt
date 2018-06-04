@@ -53,6 +53,7 @@ def password_to_key(password, salt=None):
     if not salt:
         salt = get_random_bytes(8)
     # You'll probably want to change the iteration count to something smaller
+    # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
     key = PBKDF2(password, salt, dkLen=16, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return salt, key
@@ -130,7 +131,7 @@ def encryptor(password, file):
     # Compute MAC
     mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     # Concatenate all necessary elements
-    return file[0], salt + key_hash + iv + mac + value
+    return file[0], salt + key_hash + mac + value
 
 def decryptor(password, file):
     """Decrypts the given file with the given password"""
@@ -144,9 +145,8 @@ def decryptor(password, file):
     # Extract remaining values and make sure MAC is valid
     cipher_key = given_key[:16]
     mac_key = given_key[16:]
-    iv = ciphertext[40:48]
-    mac = ciphertext[48:80]
-    value = ciphertext[80:]
+    mac = ciphertext[40:72]
+    value = ciphertext[72:]
     calc_mac = HMAC.HMAC(mac_key, value, SHA256.SHA256Hash()).digest()
     if mac != calc_mac:
         raise CryptoError("Message has been tampered with")
