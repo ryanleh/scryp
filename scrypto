@@ -48,6 +48,7 @@ def password_to_key(password, salt=None):
     if not salt:
         salt = get_random_bytes(16)
     # You'll probably want to change the iteration count to something smaller
+    # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
     key = PBKDF2(password, salt, dkLen=32, count=100000,
                  prf=lambda key, salt: HMAC.new(key, salt, SHA256).digest())
     return salt, key
