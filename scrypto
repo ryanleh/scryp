@@ -76,18 +76,20 @@ def password_to_key(password, salt=None):
 
 def aes_encrypt(key, data):
     """Encrypts data using AES-CTR with provided key and data"""
-    nonce = get_random_bytes(12)
-    counter = Counter.new(32, initial_value=1, prefix=nonce)
-    cipher = AES.new(key, AES.MODE_CTR, counter=counter)
-    return nonce, cipher.encrypt(data)
+    nonce = get_random_bytes(16)
+    cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
+    encryptor = cipher.encryptor()
+    encryptor.update(data)
+    return nonce, encryptor.finalize()
 
 
 def aes_decrypt(key, nonce, ciphertext):
     """Decrypts ciphertext using AES-CTR with provided key and nonce"""
-    counter = Counter.new(32, initial_value=1, prefix=nonce)
-    cipher = AES.new(key, AES.MODE_CTR, counter=counter)
+    cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
+    decryptor = cipher.decryptor()
+    decryptor.update(ciphertext)
     # TODO:  Do I need a try/catch here?
-    return cipher.decrypt(ciphertext)
+    return decryptor.finalize()
 
 
 def get_files(cwd, filenames, remove):
@@ -150,8 +152,8 @@ def decryptor(password, file):
     # Extract filename, nonce, and ciphertext
     filename = encrypted_file.split(b"/")[0]
     # There's an extra +1 because of the forward slash
-    nonce = encrypted_file[len(filename)+1:len(filename)+13]
-    ciphertext = encrypted_file[len(filename)+13:]
+    nonce = encrypted_file[len(filename)+1:len(filename)+17]
+    ciphertext = encrypted_file[len(filename)+17:]
 
     # Decrypt file and write to the original filename
     filename = str(filename, 'utf-8')
@@ -167,11 +169,12 @@ if __name__ == "__main__":
 
     # Attempt to import PyCrypto
     try:
-        from Crypto.Cipher import AES
+        from cryptography.hazmat.primitives.ciphers import Cipher
+        from cryptography.hazmat.primitives.ciphers.algorithms import AES
+        from cryptography.hazmat.primitives.ciphers.modes import CTR
         from cryptography.hazmat.primitives import hashes, hmac
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
         from cryptography.hazmat.backends import default_backend
-        from Crypto.Util import Counter
     except ImportError:
         print("scrypto requires PyCrypto. Install with: "
               "pip3 install pycrypto")
