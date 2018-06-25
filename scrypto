@@ -43,13 +43,28 @@ def constant_time_comparison(str1, str2):
     return is_equal
 
 
+def SHA256_hash(msg):
+    """Computes the SHA256 hash of given msg"""
+    hasher = hashes.Hash(hashes.SHA256(), backend=default_backend())
+    # TODO: Do I need a try-catch here for incorrect type?
+    hasher.update(msg)
+    return hasher.finalize()
+
+
+def HMAC_tag(key, msg):
+    """Computes the tag of given message using given key, and HMAC-SHA256"""
+    tagger = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
+    tagger.update(msg)
+    return tagger.finalize()
+
+
 def password_to_key(password, salt=None):
     """Runs PBKDF2 with 100000 iterations on provided password"""
     if not salt:
         salt = get_random_bytes(16)
     # You'll probably want to change the iteration count to something smaller
     # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
-    kdf = PBKDF2HMAC(SHA256(),
+    kdf = PBKDF2HMAC(hashes.SHA256(),
                      length=32,
                      salt=salt,
                      iterations=100000,
@@ -97,7 +112,7 @@ def encryptor(password, file):
     filename, plaintext = file
     # Generate salt, key, and key hash
     salt, key = password_to_key(password)
-    key_hash = SHA256.SHA256Hash(key).digest()
+    key_hash = SHA256_hash(key)
     cipher_key = key[:16]
     mac_key = key[16:]
 
@@ -106,7 +121,7 @@ def encryptor(password, file):
     # Forward shalshes aren't allowed in filenames so use that as a seperator
     encrypted_file = bytes(filename, 'utf-8') + b"/" + nonce + ciphertext
     # Compute MAC
-    mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
+    mac = HMAC_tag(mac_key, encrypted_file)
     # Concatenate all necessary elements
     return filename, salt + key_hash + mac + encrypted_file
 
@@ -118,7 +133,7 @@ def decryptor(password, file):
     salt = enc_contents[:16]
     key_hash = enc_contents[16:48]
     _, given_key = password_to_key(password, salt)
-    given_key_hash = SHA256.SHA256Hash(given_key).digest()
+    given_key_hash = SHA256_hash(given_key)
     if not constant_time_comparison(given_key_hash, key_hash):
         raise CryptoError("Invalid password")
 
@@ -127,7 +142,8 @@ def decryptor(password, file):
     mac_key = given_key[16:]
     tag = enc_contents[48:80]
     encrypted_file = enc_contents[80:]
-    calc_mac = HMAC.HMAC(mac_key, encrypted_file, SHA256.SHA256Hash()).digest()
+
+    calc_mac = HMAC_tag(mac_key, encrypted_file)
     if not constant_time_comparison(tag, calc_mac):
         raise CryptoError("Message has been tampered with")
 
@@ -152,8 +168,7 @@ if __name__ == "__main__":
     # Attempt to import PyCrypto
     try:
         from Crypto.Cipher import AES
-        from Crypto.Hash import HMAC
-        from cryptography.hazmat.primitives.hashes import SHA256
+        from cryptography.hazmat.primitives import hashes, hmac
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
         from cryptography.hazmat.backends import default_backend
         from Crypto.Util import Counter
@@ -167,7 +182,7 @@ if __name__ == "__main__":
     filenames = args.filenames
     remove = args.remove
     decrypt = args.decrypt
-    password = getpass.getpass()
+    password = bytes(getpass.getpass(), 'utf-8')
     files = get_files(cwd, filenames, remove)
 
     # Set modifer/writer functios depending on user-requested action
