@@ -86,7 +86,6 @@ def aes_decrypt(key, nonce, ciphertext):
     """Decrypts ciphertext using AES-CTR with provided key and nonce"""
     cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
     decryptor = cipher.decryptor()
-    # TODO:  Do I need a try/catch here?
     return decryptor.update(ciphertext)
 
 
@@ -101,6 +100,7 @@ def get_files(cwd, filenames, remove):
             file.close()
         except IOError:
                 print("Given file: " + filename + " does not exist. Skipping")
+
         # Delete the original file if the option was set by user
         if remove:
             os.remove(cwd + '/' + filename)
@@ -110,6 +110,7 @@ def get_files(cwd, filenames, remove):
 def encryptor(password, file):
     """Encrypts the given file with the given password"""
     filename, plaintext = file
+
     # Generate salt, key, and key hash
     salt, key = password_to_key(password)
     key_hash = SHA256_hash(key)
@@ -120,8 +121,10 @@ def encryptor(password, file):
     nonce, ciphertext = aes_encrypt(cipher_key, plaintext)
     # Forward shalshes aren't allowed in filenames so use that as a seperator
     encrypted_file = bytes(filename, 'utf-8') + b"/" + nonce + ciphertext
+
     # Compute MAC
     mac = HMAC_tag(mac_key, encrypted_file)
+
     # Concatenate all necessary elements
     return filename, salt + key_hash + mac + encrypted_file
 
@@ -129,23 +132,32 @@ def encryptor(password, file):
 def decryptor(password, file):
     """Decrypts the given file with the given password"""
     _, enc_contents = file
-    # Extract salt and key_hash to check if key is valid
-    salt = enc_contents[:16]
-    key_hash = enc_contents[16:48]
+    # Extract salt and key_hash
+    try:
+        salt = enc_contents[:16]
+        key_hash = enc_contents[16:48]
+    except IndexError:
+        raise CryptoError("File has been tampered with")
+
+    # Check if given password matches with password in file
     _, given_key = password_to_key(password, salt)
     given_key_hash = SHA256_hash(given_key)
     if not constant_time_comparison(given_key_hash, key_hash):
-        raise CryptoError("Invalid password")
+        raise CryptoError("Invalid password or file has been tampered with")
 
-    # Extract remaining values and make sure MAC is valid
-    cipher_key = given_key[:16]
-    mac_key = given_key[16:]
-    tag = enc_contents[48:80]
-    encrypted_file = enc_contents[80:]
+    # Extract remaining values
+    try:
+        cipher_key = given_key[:16]
+        mac_key = given_key[16:]
+        tag = enc_contents[48:80]
+        encrypted_file = enc_contents[80:]
+    except IndexError:
+        raise CryptoError("File has been tampered with")
 
+    # Confirm tag is valid
     calc_mac = HMAC_tag(mac_key, encrypted_file)
     if not constant_time_comparison(tag, calc_mac):
-        raise CryptoError("Message has been tampered with")
+        raise CryptoError("File has been tampered with")
 
     # Extract filename, nonce, and ciphertext
     filename = encrypted_file.split(b"/")[0]
@@ -165,7 +177,7 @@ if __name__ == "__main__":
         print("Please use python3")
         sys.exit(0)
 
-    # Attempt to import PyCrypto
+    # Attempt to import cryptography modules
     try:
         from cryptography.hazmat.primitives.ciphers import Cipher
         from cryptography.hazmat.primitives.ciphers.algorithms import AES
@@ -174,8 +186,8 @@ if __name__ == "__main__":
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
         from cryptography.hazmat.backends import default_backend
     except ImportError:
-        print("scrypto requires PyCrypto. Install with: "
-              "pip3 install pycrypto")
+        print("scrypto requires cryptography. Install with: "
+              "pip3 install cryptography")
 
     # Get arguments and files
     cwd = os.getcwd()
