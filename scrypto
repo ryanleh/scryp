@@ -46,7 +46,6 @@ def constant_time_comparison(str1, str2):
 def SHA256_hash(msg):
     """Computes the SHA256 hash of given msg"""
     hasher = hashes.Hash(hashes.SHA256(), backend=default_backend())
-    # TODO: Do I need a try-catch here for incorrect type?
     hasher.update(msg)
     return hasher.finalize()
 
@@ -79,17 +78,16 @@ def aes_encrypt(key, data):
     nonce = get_random_bytes(16)
     cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
     encryptor = cipher.encryptor()
-    encryptor.update(data)
-    return nonce, encryptor.finalize()
+    # No encryptor.finalize() since we're in CTR mode = no padding
+    return nonce, encryptor.update(data)
 
 
 def aes_decrypt(key, nonce, ciphertext):
     """Decrypts ciphertext using AES-CTR with provided key and nonce"""
     cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
     decryptor = cipher.decryptor()
-    decryptor.update(ciphertext)
     # TODO:  Do I need a try/catch here?
-    return decryptor.finalize()
+    return decryptor.update(ciphertext)
 
 
 def get_files(cwd, filenames, remove):
