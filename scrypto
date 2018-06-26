@@ -66,7 +66,7 @@ def password_to_key(password, salt=None):
     kdf = PBKDF2HMAC(hashes.SHA256(),
                      length=32,
                      salt=salt,
-                     iterations=100000,
+                     iterations=300000,
                      backend=default_backend()
                      )
     key = kdf.derive(password)
