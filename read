@@ -1,0 +1,230 @@
+#!/usr/bin/python3
+import argparse
+import os
+import sys
+import getpass
+
+
+class CryptoError(Exception):
+    """Exception raised for errors related to message decryption"""
+    def __init__(self, message):
+        self.message = message
+
+class Crypto(object) {
+    def __init__(self, cipher, mode, block_size, iterations, hasher):
+        self.cipher = cipher;
+        sel
+
+
+}
+
+def make_parser():
+    """Builds ArgumentParser Object"""
+    parser = argparse.ArgumentParser(description='Encrypt files using 128-bit '
+                                     'AES')
+    parser.add_argument('filenames', nargs='+',
+                        help='Files to encrypt/decrypt (Default is encrypt)',
+                        type=str)
+    parser.add_argument('-d', '--decrypt', required=False,
+                        action='store_true',
+                        help='Decrypt file')
+    parser.add_argument('-r', '--remove', required=False,
+                        action='store_true',
+                        help='Remove original file')
+    return parser
+
+
+def get_random_bytes(n):
+    """Returns n bytes of randomness"""
+    return os.urandom(n)
+
+
+def constant_time_comparison(str1, str2):
+    """Compares two strings in constant times to avoid timing attacks"""
+    if len(str1) != len(str2):
+        raise CryptoError("File is of incorrect format")
+    is_equal = True
+    for a, b in zip(str1, str2):
+        if a != b:
+            is_equal = False
+    return is_equal
+
+
+def SHA256_hash(msg):
+    """Computes the SHA256 hash of given msg"""
+    hasher = hashes.Hash(hashes.SHA256(), backend=default_backend())
+    hasher.update(msg)
+    return hasher.finalize()
+
+
+def HMAC_tag(key, msg):
+    """Computes the tag of given message using given key, and HMAC-SHA256"""
+    tagger = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
+    tagger.update(msg)
+    return tagger.finalize()
+
+
+def password_to_key(password, salt=None):
+    """Runs PBKDF2 with 100000 iterations on provided password"""
+    if not salt:
+        salt = get_random_bytes(16)
+    # You'll probably want to change the iteration count to something smaller
+    # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
+    kdf = PBKDF2HMAC(hashes.SHA256(),
+                     length=32,
+                     salt=salt,
+                     iterations=300000,
+                     backend=default_backend()
+                     )
+    key = kdf.derive(password)
+    return salt, key
+
+
+def aes_encrypt(key, data):
+    """Encrypts data using AES-CTR with provided key and data"""
+    nonce = get_random_bytes(16)
+    cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
+    encryptor = cipher.encryptor()
+    # No encryptor.finalize() since we're in CTR mode = no padding
+    return nonce, encryptor.update(data)
+
+
+def aes_decrypt(key, nonce, ciphertext):
+    """Decrypts ciphertext using AES-CTR with provided key and nonce"""
+    cipher = Cipher(AES(key), CTR(nonce), backend=default_backend())
+    decryptor = cipher.decryptor()
+    return decryptor.update(ciphertext)
+
+
+def get_files(cwd, filenames, remove):
+    """Return a list containing tuples of all filenames and plaintexts"""
+    files = []
+    for filename in filenames:
+        try:
+            file = open(cwd + '/' + filename, 'rb')
+            # Each element is a tuple of filename and contents
+            files.append((filename, file.read()))
+            file.close()
+        except IOError:
+                print("Given file: " + filename + " does not exist. Skipping")
+
+        # Delete the original file if the option was set by user
+        if remove:
+            os.remove(cwd + '/' + filename)
+    return files
+
+
+def encryptor(password, file):
+    """Encrypts the given file with the given password"""
+    filename, plaintext = file
+
+    # Generate salt, key, and key hash
+    salt, key = password_to_key(password)
+    key_hash = SHA256_hash(key)
+    cipher_key = key[:16]
+    mac_key = key[16:]
+
+    # Encrypt the plaintext
+    nonce, ciphertext = aes_encrypt(cipher_key, plaintext)
+    # Forward shalshes aren't allowed in filenames so use that as a seperator
+    encrypted_file = bytes(filename, 'utf-8') + b"/" + nonce + ciphertext
+
+    # Compute MAC
+    mac = HMAC_tag(mac_key, encrypted_file)
+
+    # Concatenate all necessary elements
+    return filename, salt + key_hash + mac + encrypted_file
+
+
+def decryptor(password, file):
+    """Decrypts the given file with the given password"""
+    _, enc_contents = file
+    # Extract salt and key_hash
+    try:
+        salt = enc_contents[:16]
+        key_hash = enc_contents[16:48]
+    except IndexError:
+        raise CryptoError("File has been tampered with")
+
+    # Check if given password matches with password in file
+    _, given_key = password_to_key(password, salt)
+    given_key_hash = SHA256_hash(given_key)
+    if not constant_time_comparison(given_key_hash, key_hash):
+        raise CryptoError("Invalid password or file has been tampered with")
+
+    # Extract remaining values
+    try:
+        cipher_key = given_key[:16]
+        mac_key = given_key[16:]
+        tag = enc_contents[48:80]
+        encrypted_file = enc_contents[80:]
+    except IndexError:
+        raise CryptoError("File has been tampered with")
+
+    # Confirm tag is valid
+    calc_mac = HMAC_tag(mac_key, encrypted_file)
+    if not constant_time_comparison(tag, calc_mac):
+        raise CryptoError("File has been tampered with")
+
+    # Extract filename, nonce, and ciphertext
+    filename = encrypted_file.split(b"/")[0]
+    # There's an extra +1 because of the forward slash
+    nonce = encrypted_file[len(filename)+1:len(filename)+17]
+    ciphertext = encrypted_file[len(filename)+17:]
+
+    # Decrypt file and write to the original filename
+    filename = str(filename, 'utf-8')
+    plaintext = aes_decrypt(cipher_key, nonce, ciphertext)
+    return filename, plaintext
+
+
+if __name__ == "__main__":
+    # Confirm that user is running python3
+    if sys.hexversion < 0x3000000:
+        print("Please use python3")
+        sys.exit(0)
+
+    # Attempt to import cryptography modules
+    try:
+        from cryptography.hazmat.primitives.ciphers import Cipher
+        from cryptography.hazmat.primitives.ciphers.algorithms import AES
+        from cryptography.hazmat.primitives.ciphers.modes import CTR
+        from cryptography.hazmat.primitives import hashes, hmac
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.backends import default_backend
+    except ImportError:
+        print("scrypto requires cryptography. Install with: "
+              "pip3 install cryptography")
+
+    # Get arguments and files
+    cwd = os.getcwd()
+    args = make_parser().parse_args()
+    filenames = args.filenames
+    remove = args.remove
+    decrypt = args.decrypt
+    password = bytes(getpass.getpass(), 'utf-8')
+    files = get_files(cwd, filenames, remove)
+
+    # Set modifer/writer functios depending on user-requested action
+    if decrypt:
+        # Function to apply to file contents
+        modifier = decryptor
+
+        # Function to write file
+        def writer(filename, plaintext):
+            with open(cwd + '/' + filename, 'bw') as f:
+                f.write(plaintext)
+            print("File: " + filename + " decrypted!")
+    else:
+        # Function to apply to file contents
+        modifier = encryptor
+
+        # Function to write file
+        def writer(filename, ciphertext):
+            with open(cwd + '/' + filename + '.enc', 'bw') as f:
+                f.write(ciphertext)
+            print("File: " + filename + " encrypted!")
+
+    # Encrypt/decrypt each file
+    for file in files:
+        writer(*modifier(password, file))
