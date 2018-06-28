@@ -33,7 +33,7 @@ MODES = {
 HASHERS = {
         'SHA512': hashes.SHA512(),
         'SHA256': hashes.SHA256(),
-        'BLAKE2': hashes.BLAKE2b(),
+        'BLAKE2': hashes.BLAKE2b(64),
 }
 
 
@@ -49,13 +49,13 @@ class Crypto(object):
 
         self.hasher = HASHERS[hasher]
         self.salt = salt or self.get_random_bytes(16)
-        key = self.derive_key(password, salt)
-        self.key_hash = self.ha
+        key = self.derive_key(password)
+        self.key_hash = self.hash(key)
         self.cipher_key = key[:16]
         self.mac_key = key[16:]
         self.nonce = nonce or self.get_random_bytes(16)
-        self.cipher = Cipher(CIPHERS[cipher](self.key),
-                             MODES[mode](nonce),
+        self.cipher = Cipher(CIPHERS[cipher](self.cipher_key),
+                             MODES[mode](self.nonce),
                              backend=default_backend())
 
     def get_random_bytes(self, n):
@@ -79,7 +79,7 @@ class Crypto(object):
             raise CryptoError("Invalid password or file has been modified")
 
         # Confirm HMAC is valid
-        calc_mac = self.HMAC(self.mac_key, enc_content)
+        calc_mac = self.HMAC(enc_content)
         if not self.constant_time_comparison(tag, calc_mac):
             raise CryptoError("File has been tampered with")
 
@@ -97,7 +97,7 @@ class Crypto(object):
         key = kdf.derive(password)
         return key
 
-    def hasher(self, msg):
+    def hash(self, msg):
         """Computes the hash of a given msg"""
         hasher = hashes.Hash(self.hasher, backend=default_backend())
         hasher.update(msg)
@@ -150,7 +150,7 @@ class FileHandler(object):
 
         # Compute HMAC
         tag = crypto.HMAC(enc_content)
-        self.name = self.name.split(".")[0] + ".enc"
+        self.name = self.name.split(".")[0]
         self.to_write = crypto.salt + crypto.key_hash + tag + enc_content
 
     def decode_file(self, password):
@@ -170,7 +170,7 @@ class FileHandler(object):
             raise CryptoError("File has been tampered with")
 
         # Generate crypto object and verify integrity
-        crypto = Cipher("AES", "CTR", "SHA256", password, salt, nonce)
+        crypto = Crypto("AES", "CTR", "SHA256", password, salt, nonce)
         crypto.verify_integrity(key_hash, enc_content, tag)
         return crypto, ciphertext
 
@@ -215,7 +215,7 @@ def encryptor(password, cwd, file):
     crypto = Crypto("AES", "CTR", "SHA256", password)
     ciphertext = crypto.aes_encrypt(plaintext)
     file_handler = FileHandler(ciphertext, cwd, "Encrypt", filename)
-    file_handler.generate_enc_file(filename, ciphertext)
+    file_handler.generate_enc_file(crypto)
     file_handler.write()
 
 
