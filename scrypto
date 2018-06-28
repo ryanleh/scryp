@@ -137,7 +137,7 @@ class FileHandler(object):
             with open(self.cwd + '/' + self.name + '.enc', 'bw') as f:
                 f.write(self.to_write)
                 print("File: {} encrypted!".format(self.name))
-        else:  # Better system here pls
+        else:
             with open(self.cwd + '/' + self.name, 'bw') as f:
                 f.write(self.to_write)
                 print("File: {} decrypted!".format(self.name))
@@ -241,12 +241,10 @@ if __name__ == "__main__":
     password = bytes(getpass.getpass(), 'utf-8')
     files = FileHandler.get_files(cwd, filenames, remove)
 
-    # Set modifer/writer functios depending on user-requested action
+    # Set modifer functions depending on user-requested action
     if decrypt:
-        # Function to apply to file contents
         modifier = decryptor
     else:
-        # Function to apply to file contents
         modifier = encryptor
 
     # Encrypt/decrypt each file
