@@ -28,7 +28,8 @@ CIPHERS = {
 }
 MODES = {
         'CTR': modes.CTR,
-        'CBC': modes.CBC
+        'CBC': modes.CBC,
+        'GCM': modes.GCM
 }
 HASHERS = {
         'SHA512': hashes.SHA512(),
