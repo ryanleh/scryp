@@ -1,0 +1,7 @@
+[package]
+name = "scrypto"
+version = "0.1.0"
+authors = ["Ryan Lehmkuhl <ryanleh.ob@gmail.com>"]
+
+[dependencies]
+ring = "0.12.1"
