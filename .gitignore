@@ -1,7 +1,6 @@
 *.pyc
 *.txt
 *.enc
-.ropeproject
-/target/
-Cargo.lock
-**/*.rs.bk
+rust/target/
+rust/**/*.rs.bk
+.ropeproject/

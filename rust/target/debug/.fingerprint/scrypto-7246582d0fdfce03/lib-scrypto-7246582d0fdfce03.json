@@ -1,1 +1,0 @@
-{"rustc":17859320367814235581,"features":"[]","target":12431425951846023318,"profile":7189233634139407861,"path":10872709659218687626,"deps":[["ring v0.12.1","ring",14773289288420533474]],"local":[{"MtimeBased":[[1530246386,578898994],".fingerprint/scrypto-7246582d0fdfce03/dep-lib-scrypto-7246582d0fdfce03"]}],"rustflags":[],"edition":"Edition2015"}
