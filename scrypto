@@ -22,7 +22,7 @@ except ImportError:
           "pip3 install cryptography")
     sys.exit(0)
 
-# Define crypto modules
+# CRYPTO MODULES
 CIPHERS = {
         'AES': algorithms.AES
 }
@@ -46,7 +46,6 @@ class CryptoError(Exception):
 class Crypto(object):
     """Handles all cryptographic operations"""
     def __init__(self, cipher, mode, hasher, password, salt=None, nonce=None):
-
         self.hasher = HASHERS[hasher]
         self.salt = salt or self.get_random_bytes(16)
         key = self.derive_key(password)
@@ -74,7 +73,7 @@ class Crypto(object):
 
     def verify_integrity(self, key_hash, enc_content, tag):
         """Verifies password hash and HMAC tag on ciphertext"""
-        # Check if password is correct
+        # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, key_hash):
             raise CryptoError("Invalid password or file has been modified")
 
@@ -84,8 +83,8 @@ class Crypto(object):
             raise CryptoError("File has been tampered with")
 
     def derive_key(self, password):
-        """Runs PBKDF2 with 100000 iterations on provided password"""
-        # You'll probably want to change the iteration count to something
+        """Runs PBKDF2 with 300000 iterations on provided password"""
+        # You'll probably want to change iterations to something
         # smaller.
         # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
         kdf = PBKDF2HMAC(self.hasher,
@@ -104,28 +103,28 @@ class Crypto(object):
         return hasher.finalize()
 
     def HMAC(self, msg):
-        """Computes the HMAC of given message using given key and hash"""
-        HMACger = hmac.HMAC(self.mac_key,
-                            self.hasher,
-                            backend=default_backend())
-        HMACger.update(msg)
-        return HMACger.finalize()
+        """Computes the tag of a message using given key and hash"""
+        tagger = hmac.HMAC(self.mac_key,
+                           self.hasher,
+                           backend=default_backend())
+        tagger.update(msg)
+        return tagger.finalize()
 
     def aes_encrypt(self, plaintext):
-        """Encrypts data using AES-CTR with provided key and data"""
+        """Encrypts plaintext using specified cipher and provided key"""
         encryptor = self.cipher.encryptor()
         ciphertext = encryptor.update(plaintext) + encryptor.finalize()
         return ciphertext
 
     def aes_decrypt(self, ciphertext):
-        """Decrypts ciphertext using AES-CTR with provided key and nonce"""
+        """Decrypts ciphertext using specified cipher and provided key/nonce"""
         decryptor = self.cipher.decryptor()
         plaintext = decryptor.update(ciphertext) + decryptor.finalize()
         return plaintext
 
 
 class FileHandler(object):
-    """Responsible for creating and parsing all files"""
+    """Handles all file i/o"""
     def __init__(self, content, cwd, operation, filename=None):
         self.content = content
         self.cwd = cwd
@@ -133,24 +132,22 @@ class FileHandler(object):
         self.name = filename
 
     def write(self):
+        with open(self.cwd + '/' + self.name_to_write, 'bw') as f:
+            f.write(self.to_write)
         if self.operation == "Encrypt":
-            with open(self.cwd + '/' + self.name + '.enc', 'bw') as f:
-                f.write(self.to_write)
-                print("File: {} encrypted!".format(self.name))
+            print("File: {} encrypted!".format(self.name))
         else:
-            with open(self.cwd + '/' + self.name, 'bw') as f:
-                f.write(self.to_write)
-                print("File: {} decrypted!".format(self.name))
+            print("File: {} decrypted!".format(self.name))
 
     def generate_enc_file(self, crypto):
-        """Returns all elements concatenated together and HMACged correctly"""
+        """Returns all elements concatenated together and tagged correctly"""
         # Forward slashes are banned in filenames so use that as a separator
         enc_content = (bytes(self.name, 'utf-8') + b"/" + crypto.nonce +
                        self.content)
-
         # Compute HMAC
         tag = crypto.HMAC(enc_content)
         self.name = self.name.split(".")[0]
+        self.name_to_write = self.name + '.enc'
         self.to_write = crypto.salt + crypto.key_hash + tag + enc_content
 
     def decode_file(self, password):
@@ -160,12 +157,15 @@ class FileHandler(object):
             salt = self.content[:16]
             key_hash = self.content[16:48]
             tag = self.content[48:80]
+
+            # Don't unpack enc_content immediately because it's used for tag
             enc_content = self.content[80:]
 
-            self.name = str(enc_content.split(b"/")[0], 'utf-8')
+            self.name_to_write = str(enc_content.split(b"/")[0], 'utf-8')
             # There's an extra +1 because of the forward slash
-            nonce = enc_content[len(self.name)+1:len(self.name)+17]
-            ciphertext = enc_content[len(self.name)+17:]
+            nonce = enc_content[len(self.name_to_write)+1:
+                                len(self.name_to_write)+17]
+            ciphertext = enc_content[len(self.name_to_write)+17:]
         except IndexError:
             raise CryptoError("File has been tampered with")
 
@@ -186,7 +186,6 @@ class FileHandler(object):
             except IOError:
                     print("Given file: " + filename +
                           " does not exist. Skipping")
-
             # Delete the original file if the option was set by user
             if remove:
                 os.remove(cwd + '/' + filename)
@@ -211,8 +210,11 @@ def make_parser():
 
 def encryptor(password, cwd, file):
     """Encrypts the given file with the given password"""
+    # Create crypto object
     filename, plaintext = file
     crypto = Crypto("AES", "CTR", "SHA256", password)
+
+    # Encrypt and write file
     ciphertext = crypto.aes_encrypt(plaintext)
     file_handler = FileHandler(ciphertext, cwd, "Encrypt", filename)
     file_handler.generate_enc_file(crypto)
@@ -221,11 +223,12 @@ def encryptor(password, cwd, file):
 
 def decryptor(password, cwd, file):
     """Decrypts the given file with the given password"""
-    _, enc_file = file
-    file_handler = FileHandler(enc_file, cwd, "Decrypt")
+    # Parse file and create crypto object
+    filename, enc_file = file
+    file_handler = FileHandler(enc_file, cwd, "Decrypt", filename)
     crypto, ciphertext = file_handler.decode_file(password)
 
-    # Decrypt file and write to the original filename
+    # Decrypt and write file
     plaintext = crypto.aes_decrypt(ciphertext)
     file_handler.to_write = plaintext
     file_handler.write()
