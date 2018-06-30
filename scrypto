@@ -68,7 +68,7 @@ class Crypto(object):
         # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, key_hash):
             raise CryptoError("Key hash comparison failed --> Invalid password"
-                              "or file has been tampered with")
+                              " or file has been tampered with")
 
     def derive_key(self, password):
         """Runs PBKDF2 with 300000 iterations on provided password"""
