@@ -11,12 +11,11 @@ if sys.hexversion < 0x3000000:
 
 # Attempt to import cryptography modules
 try:
-    from cryptography.hazmat.primitives.ciphers import Cipher
-    from cryptography.hazmat.primitives.ciphers import algorithms
-    from cryptography.hazmat.primitives.ciphers import modes
-    from cryptography.hazmat.primitives import hashes, hmac
+    from cryptography.hazmat.primitives.ciphers import aead
+    from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
     from cryptography.hazmat.backends import default_backend
+    from cryptography.exceptions import InvalidTag
 except ImportError:
     print("scrypto requires cryptography. Install with: "
           "pip3 install cryptography")
@@ -24,17 +23,14 @@ except ImportError:
 
 # CRYPTO MODULES
 CIPHERS = {
-        'AES': algorithms.AES
-}
-MODES = {
-        'CTR': modes.CTR,
-        'CBC': modes.CBC
+        'AES-GCM': aead.AESGCM
 }
 HASHERS = {
         'SHA512': hashes.SHA512(),
         'SHA256': hashes.SHA256(),
-        'BLAKE2': hashes.BLAKE2b(64),
+        'BLAKE2': hashes.BLAKE2b(64)
 }
+backend = default_backend()
 
 
 class CryptoError(Exception):
@@ -45,17 +41,13 @@ class CryptoError(Exception):
 
 class Crypto(object):
     """Handles all cryptographic operations"""
-    def __init__(self, cipher, mode, hasher, password, salt=None, nonce=None):
+    def __init__(self, cipher, hasher, password, salt=None, nonce=None):
+        self.nonce = nonce or self.get_random_bytes(16)
         self.hasher = HASHERS[hasher]
         self.salt = salt or self.get_random_bytes(16)
-        key = self.derive_key(password)
-        self.key_hash = self.hash(key)
-        self.cipher_key = key[:16]
-        self.mac_key = key[16:]
-        self.nonce = nonce or self.get_random_bytes(16)
-        self.cipher = Cipher(CIPHERS[cipher](self.cipher_key),
-                             MODES[mode](self.nonce),
-                             backend=default_backend())
+        self.key = self.derive_key(password)
+        self.key_hash = self.hash(self.key)
+        self.cipher = CIPHERS[cipher](self.key)
 
     def get_random_bytes(self, n):
         """Returns n bytes of randomness"""
@@ -71,16 +63,12 @@ class Crypto(object):
                 is_equal = False
         return is_equal
 
-    def verify_integrity(self, key_hash, enc_content, tag):
-        """Verifies password hash and HMAC tag on ciphertext"""
+    def verify_password(self, key_hash, enc_content):
+        """Verifies password hash"""
         # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, key_hash):
-            raise CryptoError("Invalid password or file has been modified")
-
-        # Confirm HMAC is valid
-        calc_mac = self.HMAC(enc_content)
-        if not self.constant_time_comparison(tag, calc_mac):
-            raise CryptoError("File has been tampered with")
+            raise CryptoError("Key hash comparison failed --> Invalid password"
+                              " or file has been tampered with")
 
     def derive_key(self, password):
         """Runs PBKDF2 with 300000 iterations on provided password"""
@@ -88,7 +76,7 @@ class Crypto(object):
         # smaller.
         # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
         kdf = PBKDF2HMAC(self.hasher,
-                         length=32,
+                         length=16,
                          salt=self.salt,
                          iterations=300000,
                          backend=default_backend()
@@ -102,24 +90,17 @@ class Crypto(object):
         hasher.update(msg)
         return hasher.finalize()
 
-    def HMAC(self, msg):
-        """Computes the tag of a message using given key and hash"""
-        tagger = hmac.HMAC(self.mac_key,
-                           self.hasher,
-                           backend=default_backend())
-        tagger.update(msg)
-        return tagger.finalize()
-
     def aes_encrypt(self, plaintext):
         """Encrypts plaintext using specified cipher and provided key"""
-        encryptor = self.cipher.encryptor()
-        ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+        ciphertext = self.cipher.encrypt(self.nonce, plaintext, None)
         return ciphertext
 
     def aes_decrypt(self, ciphertext):
         """Decrypts ciphertext using specified cipher and provided key/nonce"""
-        decryptor = self.cipher.decryptor()
-        plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        try:
+            plaintext = self.cipher.decrypt(self.nonce, ciphertext, None)
+        except InvalidTag:
+            raise CryptoError("Invalid Tag --> File has been tampered with")
         return plaintext
 
 
@@ -145,10 +126,9 @@ class FileHandler(object):
         enc_content = (bytes(self.name, 'utf-8') + b"/" + crypto.nonce +
                        self.content)
         # Compute HMAC
-        tag = crypto.HMAC(enc_content)
         self.name = self.name.split(".")[0]
         self.name_to_write = self.name + '.enc'
-        self.to_write = crypto.salt + crypto.key_hash + tag + enc_content
+        self.to_write = crypto.salt + crypto.key_hash + enc_content
 
     def decode_file(self, password):
         """Parses an encrypted file into the corresponding crypto object"""
@@ -156,10 +136,9 @@ class FileHandler(object):
         try:
             salt = self.content[:16]
             key_hash = self.content[16:48]
-            tag = self.content[48:80]
 
             # Don't unpack enc_content immediately because it's used for tag
-            enc_content = self.content[80:]
+            enc_content = self.content[48:]
 
             self.name_to_write = str(enc_content.split(b"/")[0], 'utf-8')
             # There's an extra +1 because of the forward slash
@@ -170,8 +149,8 @@ class FileHandler(object):
             raise CryptoError("File has been tampered with")
 
         # Generate crypto object and verify integrity
-        crypto = Crypto("AES", "CTR", "SHA256", password, salt, nonce)
-        crypto.verify_integrity(key_hash, enc_content, tag)
+        crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
+        crypto.verify_password(key_hash, enc_content)
         return crypto, ciphertext
 
     def get_files(cwd, filenames, remove):
@@ -212,7 +191,7 @@ def encryptor(password, cwd, file):
     """Encrypts the given file with the given password"""
     # Create crypto object
     filename, plaintext = file
-    crypto = Crypto("AES", "CTR", "SHA256", password)
+    crypto = Crypto("AES-GCM", "SHA256", password)
 
     # Encrypt and write file
     ciphertext = crypto.aes_encrypt(plaintext)
