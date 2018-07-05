@@ -10,6 +10,7 @@ struct Crypto {
     ciper: ring::aead::Algorithm,
 }
 
+/*
 impl Crypto {
     fn get_random_bytes(&self, n: i32) -> i32 {
         0
@@ -20,6 +21,14 @@ impl Crypto {
     }
 
     fn hash(&self, msg: &str) -> u8 {
-
+        0
     }
-}
+
+    fn aes_encrypt(&self, plaintext: &str) -> String {
+        String::new()
+    }
+    
+    fn aes_decrypt(&self, ciphertext: &str) -> String {
+        String::new()
+    }
+}*/
