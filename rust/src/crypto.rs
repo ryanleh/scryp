@@ -7,14 +7,16 @@ use self::rand::{SystemRandom, SecureRandom};
 static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
 const KEY_LEN: usize = 16;
+const SALT_LEN: usize = 16;
+const NONCE_LEN: usize = 16;
 const PBKDF2_ITERS: u32 = 100000;
 
 
 pub struct Crypto {
-    salt: [u8; 16],
-    nonce: [u8; 12],
+    salt: [u8; SALT_LEN],
+    nonce: [u8; NONCE_LEN],
     key_hash: digest::Digest,
-    cipher_key: [u8; 16],
+    cipher_key: [u8; KEY_LEN],
 }
 
 
@@ -22,9 +24,10 @@ impl Crypto {
     // Weird func sig because of poor optional argument support
     // TODO: add support for choosing hash
     fn new<'a>(&self, password: &'a str) -> Crypto {
-        let mut salt = [0; 16];
+        let mut salt = [0; SALT_LEN];
         self.get_random_bytes(&mut salt);
-        let mut nonce = [0; 12];
+
+        let mut nonce = [0; NONCE_LEN];
         self.get_random_bytes(&mut nonce);
         
         let mut cipher_key = [0; KEY_LEN];
