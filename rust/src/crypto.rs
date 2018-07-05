@@ -1,12 +1,13 @@
 extern crate ring;
-use self::ring::aead;
-use self::ring::digest;
-use self::ring::rand::SystemRandom;
-use self::ring::rand::SecureRandom;
+use self::ring::{aead, digest, rand, pbkdf2};
+use self::rand::{SystemRandom, SecureRandom};
+
+static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
+static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
+const CREDENTIAL_LEN: usize = digest::SHA256_OUTPUT_LEN;
+
 
 pub struct Crypto {
-    cipher: &'static aead::Algorithm,
-    hasher: &'static digest::Algorithm,
     salt: [u8; 16],
     nonce: [u8; 12],
     key_hash: [u8; 32],
@@ -23,12 +24,10 @@ impl Crypto {
         let mut nonce = [0; 12];
         self.get_random_bytes(&mut nonce);
         Crypto {
-                cipher: &aead::AES_128_GCM,
-                hasher: &digest::SHA256,
                 salt,
                 nonce,
                 key_hash: [0; 32],
-                cipher_key: [0; 16],
+                cipher_key: [0; 32],
         }
     }
     
