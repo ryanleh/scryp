@@ -36,5 +36,5 @@ fn main() {
     }
 
     let filenames: Vec<&str> = matches.values_of("filenames").unwrap().collect();
-    run(operation, remove, filenames);
+    run(&operation, remove, filenames);
 }

@@ -3,17 +3,17 @@ use std::io::prelude::*;
 use Operation;
 
 
-struct FileHandler {
-    name: String,
-    operation: Operation,
+pub struct FileHandler<'a> {
+    name: &'a str,
+    operation: &'a Operation,
     remove: bool,
     content: Vec<u8>,
     to_write_name: String,
     to_write: Vec<u8>,
 }
 
-impl FileHandler {
-    fn new(name: String, operation: Operation, remove: bool) -> FileHandler {
+impl<'a> FileHandler<'a> {
+    pub fn new(name: &'a str, operation: &'a Operation, remove: bool) -> FileHandler<'a> {
         let mut content = Vec::new();
         File::open(&name)
             .expect("Error opening file")
@@ -27,7 +27,7 @@ impl FileHandler {
         } 
     }
 
-    fn write(&self) {
+    pub fn write(&self) {
         File::create(&self.to_write_name)
                     .expect("Error creating file (permissions issue?)")
                     .write(&self.to_write);
