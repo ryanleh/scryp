@@ -5,3 +5,7 @@ pub enum Operation {
     DECRYPT,
     ENCRYPT,
 }
+
+pub fn run(operation: Operation, remove: bool, filenames: Vec<&str>) {
+    
+}
