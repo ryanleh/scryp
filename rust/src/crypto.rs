@@ -21,43 +21,36 @@ pub struct Crypto {
 
 
 impl Crypto {
-    // TODO: add support for choosing hash
-    fn new<'a, T: Into<Option<[u8; SALT_LEN]>>,
-           V: Into<Option<[u8; NONCE_LEN]>>>(&self, password: &'a str, salt: T,
-                                             nonce: V) -> Crypto {
+    fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
+            (password: &'a str, salt: T, nonce: V) -> Crypto {
         let mut salt = salt.into().unwrap_or([0; SALT_LEN]);
-        self.get_random_bytes(&mut salt);
+        Crypto::get_random_bytes(&mut salt);
 
         let mut nonce = nonce.into().unwrap_or([0; NONCE_LEN]);
-        self.get_random_bytes(&mut nonce);
-        
+        Crypto::get_random_bytes(&mut nonce);
+
         let mut cipher_key = [0; KEY_LEN];
-        self.derive_key(password, &mut cipher_key);
+        Crypto::derive_key(password, &salt, &mut cipher_key);
 
         let key_hash = Crypto::hash(&cipher_key);
 
-        Crypto {
-                salt,
-                nonce,
-                key_hash,
-                cipher_key,
-        }
+        Crypto { salt, nonce, key_hash, cipher_key }
     }
     
-    fn get_random_bytes(&self, dest: &mut [u8]) {
+    fn get_random_bytes(dest: &mut [u8]) {
         let random = SystemRandom::new();
         random.fill(dest)
             .expect("Failed to fill dest");
     }
 
-    fn derive_key(&self, password: &str, dest: &mut [u8]) {
-        pbkdf2::derive(DIGEST_ALG, PBKDF2_ITERS, &self.salt,
-                       password.as_bytes(), dest);
+    fn derive_key(password: &str, salt: &[u8; SALT_LEN], dest: &mut [u8]) {
+        pbkdf2::derive(DIGEST_ALG, PBKDF2_ITERS, salt, password.as_bytes(), dest);
     }
 
-    fn verify_key(&self, password: &str, file_key_hash: &[u8; HASH_LEN]) -> Result<(), error::Unspecified> {
+    fn verify_key(password: &str, salt: &[u8; SALT_LEN], file_key_hash: &[u8; HASH_LEN]) 
+            -> Result<(), error::Unspecified> {
         let mut given_key = [0; KEY_LEN];
-        self.derive_key(password, &mut given_key);
+        Crypto::derive_key(password, salt, &mut given_key);
         let given_key_hash = Crypto::hash(&given_key);
         constant_time::verify_slices_are_equal(given_key_hash.as_ref(), file_key_hash)
     }
@@ -91,6 +84,16 @@ mod tests {
                                         93, 108, 21, 176, 240, 10, 8];
         let actual = Crypto::hash(&test);
         assert_eq!(expected, actual.as_ref());
+    }
+    
+    #[test]
+    fn pbkdf2_derivation() {
+        let expected: [u8; KEY_LEN] = [42, 66, 208, 104, 253, 187, 180, 77,
+                                       116, 163, 197, 229, 140, 43, 253, 234];    
+        let salt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
+        let mut actual = [0; KEY_LEN];
+        Crypto::derive_key("test", &salt, &mut actual);
+        assert_eq!(expected, actual);
     }
 }
 
