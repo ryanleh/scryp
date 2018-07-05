@@ -4,11 +4,10 @@ mod file_handler;
 use clap::{Arg, App};
 use scrypto::Operation;
 
-
-
 fn main() {
     let matches = App::new("scrypto")
         .author("Ryan Lehmkuhl <ryanleh.ob@gmail.com")
+        .version("1.0")
         .about("Encrypt files using 128-bit AES-GCM")
         .arg(Arg::with_name("filenames")
              .help("Files to encrypt/decrypt (Default is encrypt)")
