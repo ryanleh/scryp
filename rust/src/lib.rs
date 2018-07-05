@@ -1,7 +1,7 @@
 pub mod crypto;
 pub mod file_handler;
 
-enum Operation {
+pub enum Operation {
     DECRYPT,
     ENCRYPT,
 }
