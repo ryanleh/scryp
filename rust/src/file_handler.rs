@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
-use ::Operation;
+
 
 struct FileHandler {
     content: Vec<u8>,
