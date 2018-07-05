@@ -4,21 +4,23 @@ use Operation;
 
 
 struct FileHandler {
-    content: Vec<u8>,
-    operation: Operation,
     name: String,
+    operation: Operation,
+    remove: bool,
+    content: Vec<u8>,
     to_write_name: String,
     to_write: Vec<u8>,
 }
 
 impl FileHandler {
-    fn new(name: String, operation: Operation) -> FileHandler {
+    fn new(name: String, operation: Operation, remove: bool) -> FileHandler {
         let mut content = Vec::new();
         File::open(&name)
             .expect("Error opening file")
             .read_to_end(&mut content);
-        FileHandler{ content, 
-                     name, 
+        FileHandler{ name,
+                     content, 
+                     remove, 
                      operation, 
                      to_write_name: String::new(),
                      to_write: Vec::new(),

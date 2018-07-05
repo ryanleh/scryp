@@ -2,7 +2,7 @@ extern crate scrypto;
 extern crate clap;
 mod file_handler;
 use clap::{Arg, App};
-use scrypto::Operation;
+use scrypto::{Operation, run};
 
 fn main() {
     let matches = App::new("scrypto")
@@ -36,4 +36,5 @@ fn main() {
     }
 
     let filenames: Vec<&str> = matches.values_of("filenames").unwrap().collect();
+    run(operation, remove, filenames);
 }
