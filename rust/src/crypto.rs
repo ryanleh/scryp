@@ -8,7 +8,7 @@ static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
 const KEY_LEN: usize = 16;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 16;
-const HASH_LEN: usize = 16;
+const HASH_LEN: usize = 32;
 const PBKDF2_ITERS: u32 = 100000;
 
 
@@ -34,7 +34,7 @@ impl Crypto {
         let mut cipher_key = [0; KEY_LEN];
         self.derive_key(password, &mut cipher_key);
 
-        let key_hash = self.hash(&cipher_key);
+        let key_hash = Crypto::hash(&cipher_key);
 
         Crypto {
                 salt,
@@ -58,11 +58,11 @@ impl Crypto {
     fn verify_key(&self, password: &str, file_key_hash: &[u8; HASH_LEN]) -> Result<(), error::Unspecified> {
         let mut given_key = [0; KEY_LEN];
         self.derive_key(password, &mut given_key);
-        let given_key_hash = self.hash(&given_key);
+        let given_key_hash = Crypto::hash(&given_key);
         constant_time::verify_slices_are_equal(given_key_hash.as_ref(), file_key_hash)
     }
 
-    fn hash(&self, msg: &[u8]) -> digest::Digest {
+    fn hash(msg: &[u8]) -> digest::Digest {
         digest::digest(DIGEST_ALG, msg)
     }
 
@@ -74,3 +74,26 @@ impl Crypto {
         String::new()
     }*/
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // "test" in u8
+    const test: [u8; 4] = [116, 101, 115, 116];
+
+    #[test]
+    fn sha256_hashing() {
+        // Compute SHA256("test")
+        let expected: [u8; HASH_LEN] = [159, 134, 208, 129, 136, 76, 125, 101,
+                                        154, 47, 234, 160, 197, 90, 208, 21, 
+                                        163, 191, 79, 27, 43, 11, 130, 44, 209,
+                                        93, 108, 21, 176, 240, 10, 8];
+        let actual = Crypto::hash(&test);
+        assert_eq!(expected, actual.as_ref());
+    }
+}
+
+
+
+
