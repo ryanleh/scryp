@@ -9,13 +9,13 @@ const KEY_LEN: usize = 16;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 16;
 const HASH_LEN: usize = 32;
-const PBKDF2_ITERS: u32 = 100000;
+const PBKDF2_ITERS: u32 = 300000;
 
 
 pub struct Crypto {
     salt: [u8; SALT_LEN],
     nonce: [u8; NONCE_LEN],
-    key_hash: digest::Digest,
+    key_hash: [u8; HASH_LEN],
     cipher_key: [u8; KEY_LEN],
 }
 
@@ -52,11 +52,14 @@ impl Crypto {
         let mut given_key = [0; KEY_LEN];
         Crypto::derive_key(password, salt, &mut given_key);
         let given_key_hash = Crypto::hash(&given_key);
-        constant_time::verify_slices_are_equal(given_key_hash.as_ref(), file_key_hash)
+        constant_time::verify_slices_are_equal(&given_key_hash, file_key_hash)
     }
 
-    fn hash(msg: &[u8]) -> digest::Digest {
-        digest::digest(DIGEST_ALG, msg)
+    fn hash(msg: &[u8]) -> [u8; HASH_LEN] {
+        let mut hash = [0; HASH_LEN];
+        let hash_digest = digest::digest(DIGEST_ALG, msg);
+        hash.copy_from_slice(&hash_digest.as_ref()[0..HASH_LEN]);
+        hash
     }
 
     /*fn aes_encrypt(&self, plaintext: &str) -> String {
@@ -76,7 +79,7 @@ mod tests {
     const test: [u8; 4] = [116, 101, 115, 116];
 
     #[test]
-    fn sha256_hashing() {
+    fn test_hash() {
         // Compute SHA256("test")
         let expected: [u8; HASH_LEN] = [159, 134, 208, 129, 136, 76, 125, 101,
                                         154, 47, 234, 160, 197, 90, 208, 21, 
@@ -87,13 +90,30 @@ mod tests {
     }
     
     #[test]
-    fn pbkdf2_derivation() {
-        let expected: [u8; KEY_LEN] = [42, 66, 208, 104, 253, 187, 180, 77,
-                                       116, 163, 197, 229, 140, 43, 253, 234];    
+    fn test_derive_key() {
+        let expected: [u8; KEY_LEN] = [241, 38, 124, 132, 21, 185, 197, 23, 136,
+                                       236, 178, 62, 212, 44, 248, 227];
         let salt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
         let mut actual = [0; KEY_LEN];
         Crypto::derive_key("test", &salt, &mut actual);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_verify_key() {
+        let correct: [u8; KEY_LEN] = [241, 38, 124, 132, 21, 185, 197, 23, 136,
+                                        236, 178, 62, 212, 44, 248, 227];
+        let correct_hash = Crypto::hash(&correct);
+        let salt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
+        let result = Crypto::verify_key("test", &salt, &correct_hash);
+        assert_eq!(result.unwrap(), ());
+
+        let incorrect: [u8; KEY_LEN] = [240, 38, 124, 132, 21, 185, 197, 23, 136,
+                                        236, 178, 62, 212, 44, 248, 227];
+        let incorrect_hash = Crypto::hash(&incorrect);
+        let result = Crypto::verify_key("test", &salt, &incorrect_hash);
+        result.unwrap();
     }
 }
 
