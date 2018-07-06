@@ -5,6 +5,7 @@ use self::rand::{SystemRandom, SecureRandom};
 
 static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
+const TAG_LEN: usize = aead::MAX_TAG_LEN;
 const KEY_LEN: usize = 16;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 16;
@@ -62,13 +63,14 @@ impl Crypto {
         hash
     }
 
-    /*fn aes_encrypt(&self, plaintext: &str) -> String {
-        String::new()
+    // Perhaps find a better way to handle memory here?
+    fn aes_encrypt(&self, plaintext: &mut [u8]) -> Result<usize, error::Unspecified> {
+        Ok(3)
     }
     
-    fn aes_decrypt(&self, ciphertext: &str) -> String {
-        String::new()
-    }*/
+    fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], error::Unspecified> {
+        Err(error::Unspecified)
+    }
 }
 
 
@@ -77,6 +79,9 @@ mod tests {
     use super::*;
     // "test" in u8
     const test: [u8; 4] = [116, 101, 115, 116];
+    const salt: [u8; SALT_LEN] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
+    const nonce: [u8; NONCE_LEN] = [37, 134, 36, 162, 205, 16, 237, 253, 119, 102, 
+                                    189, 36, 173, 122, 192, 107];
 
     #[test]
     fn test_hash() {
@@ -93,7 +98,6 @@ mod tests {
     fn test_derive_key() {
         let expected: [u8; KEY_LEN] = [241, 38, 124, 132, 21, 185, 197, 23, 136,
                                        236, 178, 62, 212, 44, 248, 227];
-        let salt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
         let mut actual = [0; KEY_LEN];
         Crypto::derive_key("test", &salt, &mut actual);
         assert_eq!(expected, actual);
@@ -105,7 +109,6 @@ mod tests {
         let correct: [u8; KEY_LEN] = [241, 38, 124, 132, 21, 185, 197, 23, 136,
                                         236, 178, 62, 212, 44, 248, 227];
         let correct_hash = Crypto::hash(&correct);
-        let salt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
         let result = Crypto::verify_key("test", &salt, &correct_hash);
         assert_eq!(result.unwrap(), ());
 
@@ -114,6 +117,29 @@ mod tests {
         let incorrect_hash = Crypto::hash(&incorrect);
         let result = Crypto::verify_key("test", &salt, &incorrect_hash);
         result.unwrap();
+    }
+
+    #[test]
+    fn test_aes_encrypt() {
+        let correct = [139, 206, 129, 20, 238, 11, 138, 165, 185, 25, 216, 151, 80, 192, 44, 49, 
+                   78, 31, 42, 168];
+        let crypto = Crypto::new("test", salt, nonce); 
+        let message = "test";
+        let mut plaintext = Vec::new();
+        plaintext.push(message.as_bytes().clone());
+        plaintext.push(&[0; TAG_LEN]);
+        let mut test: &[u8] = plaintext.as_slice();
+        let actual = crypto.aes_encrypt(&mut test);
+        assert_eq!(correct, actual);
+    }
+
+    #[test]
+    fn test_aes_decrypt() {
+        let correct = "test";
+        let crypto = Crypto::new("test", salt, nonce);
+        let actual = crypto.aes_decrypt(&[139, 206, 129, 20, 238, 11, 138, 165, 185, 25, 216, 151, 
+                                      80, 192, 44, 49, 78, 31, 42, 168]);
+        assert_eq!(correct, actual);
     }
 }
 
