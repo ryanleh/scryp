@@ -120,25 +120,20 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_encrypt() {
+    fn test_aes() {
         let correct = [139, 206, 129, 20, 238, 11, 138, 165, 185, 25, 216, 151, 80, 192, 44, 49, 
                    78, 31, 42, 168];
         let crypto = Crypto::new("test", salt, nonce); 
         let message: String = "test".to_string();
-        let mut plaintext: Vec<u8> = Vec::with_capacity(message.len() + TAG_LEN);
-        plaintext.copy_from_slice(&message.as_bytes()[..]);
-        let actual_size = crypto.aes_encrypt(&mut plaintext).unwrap();
-        let actual = &plaintext[..actual_size];
+        let mut plaintext: Vec<u8> = vec![0;message.len()+TAG_LEN];
+        plaintext[..message.len()].copy_from_slice(message.as_bytes());
+        let ciphertext_size = crypto.aes_encrypt(&mut plaintext).unwrap();
+        let actual = &mut plaintext[..ciphertext_size];
         assert_eq!(correct, actual);
-    }
-
-    #[test]
-    fn test_aes_decrypt() {
-        /*let correct = "test";
-        let crypto = Crypto::new("test", salt, nonce);
-        let actual = crypto.aes_decrypt(&[139, 206, 129, 20, 238, 11, 138, 165, 185, 25, 216, 151, 
-                                      80, 192, 44, 49, 78, 31, 42, 168]);
-        assert_eq!(correct, actual);*/
+        
+        let correct = "test".to_string();
+        let plaintext = crypto.aes_decrypt(actual).unwrap();
+        assert_eq!(correct.as_bytes(), plaintext);
     }
 }
 
