@@ -1,7 +1,9 @@
 extern crate ring;
 use self::ring::{aead, digest, rand, pbkdf2, constant_time, error};
 use self::rand::{SystemRandom, SecureRandom};
+use self::error::Unspecified as CryptoError;
 
+use Operation;
 
 static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
@@ -13,25 +15,27 @@ const HASH_LEN: usize = 32;
 const PBKDF2_ITERS: u32 = 300000;
 
 
-pub struct Crypto {
+pub struct Crypto<T> {
     salt: [u8; SALT_LEN],
     nonce: [u8; NONCE_LEN],
     key_hash: [u8; HASH_LEN],
-    cipher_key: [u8; KEY_LEN],
+    cipher_key: T,
 }
 
 
 impl Crypto {
     fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
-            (password: &'a str, salt: T, nonce: V) -> Crypto {
+            (password: &'a str, operation: Operation, salt: T, nonce: V) -> Crypto {
         let mut salt = salt.into().unwrap_or([0; SALT_LEN]);
         Crypto::get_random_bytes(&mut salt);
 
         let mut nonce = nonce.into().unwrap_or([0; NONCE_LEN]);
         Crypto::get_random_bytes(&mut nonce);
 
-        let mut cipher_key = [0; KEY_LEN];
-        Crypto::derive_key(password, &salt, &mut cipher_key);
+        let mut key = [0; KEY_LEN];
+        Crypto::derive_key(password, &salt, &mut key);
+        let cipher_key = match operation {
+            ENCRYPT => 
 
         let key_hash = Crypto::hash(&cipher_key);
 
@@ -64,11 +68,12 @@ impl Crypto {
     }
 
     // Perhaps find a better way to handle memory here?
-    fn aes_encrypt(&self, plaintext: &mut [u8]) -> Result<usize, error::Unspecified> {
+    fn aes_encrypt<'a>(&self,ciphertext: &'a mut [u8]) -> Result<usize, CryptoError> {
+        //aead::seal_in_place(&self.seal_key, &self.nonce, &[], &mut ciphertext, TAG_LEN)
         Ok(3)
     }
     
-    fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], error::Unspecified> {
+    fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], CryptoError> {
         Err(error::Unspecified)
     }
 }
@@ -125,10 +130,9 @@ mod tests {
                    78, 31, 42, 168];
         let crypto = Crypto::new("test", salt, nonce); 
         let message: String = "test".to_string();
-        let mut plaintext: Vec<u8> = vec![0;message.len()+TAG_LEN];
-        plaintext[..message.len()].copy_from_slice(message.as_bytes());
-        let ciphertext_size = crypto.aes_encrypt(&mut plaintext).unwrap();
-        let actual = &mut plaintext[..ciphertext_size];
+        let mut ciphertext: Vec<u8> = vec![0;message.len()+TAG_LEN];
+        ciphertext[..msg.len()].copy_from_slice(msg.as_bytes());
+        let actual = crypto.aes_encrypt(&mut ciphertext);
         assert_eq!(correct, actual);
         
         let correct = "test".to_string();
