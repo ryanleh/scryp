@@ -17,7 +17,8 @@ impl<'a> FileHandler<'a> {
         let mut content = Vec::new();
         File::open(&name)
             .expect("Error opening file")
-            .read_to_end(&mut content);
+            .read_to_end(&mut content)
+            .expect("Error reading file");
         FileHandler{ name,
                      content, 
                      remove, 
@@ -30,10 +31,11 @@ impl<'a> FileHandler<'a> {
     pub fn write(&self) {
         File::create(&self.to_write_name)
                     .expect("Error creating file (permissions issue?)")
-                    .write(&self.to_write);
+                    .write(&self.to_write)
+                    .expect("Error writing to file (permissions issue?)");
         match self.operation {
-            ref DECRYPT => println!("File: {} decrypted!", self.name),
-            ref ENCRYPT => println!("File: {} encrypted!", self.name),
+            Operation::DECRYPT => println!("File: {} decrypted!", self.name),
+            Operation::ENCRYPT => println!("File: {} encrypted!", self.name),
         }
     }
 }

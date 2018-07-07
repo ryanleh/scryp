@@ -19,8 +19,8 @@ pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
     for filename in filenames.iter() {
         let file_handler = FileHandler::new(filename, &operation, remove);
         let modifier = match operation {
-            DECRYPT => decryptor,
-            ENCRYPT => encryptor,
+            Operation::DECRYPT => decryptor,
+            Operation::ENCRYPT => encryptor,
         };
         modifier(file_handler, &password);
     }
