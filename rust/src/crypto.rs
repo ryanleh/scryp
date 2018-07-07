@@ -18,12 +18,12 @@ pub struct Crypto {
     salt: [u8; SALT_LEN],
     nonce: [u8; NONCE_LEN],
     key_hash: [u8; HASH_LEN],
-    cipher_key: [u8; KEY_LEN],
+    key: [u8; KEY_LEN],
 }
 
 
 impl Crypto {
-    fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
+    pub fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
             (password: &'a str, salt: T, nonce: V) -> Crypto {
         let mut salt = match salt.into() {
             Some(s) => s,
@@ -43,12 +43,12 @@ impl Crypto {
             },
         };
 
-        let mut cipher_key = [0; KEY_LEN];
-        Crypto::derive_key(password, &salt, &mut cipher_key);
+        let mut key = [0; KEY_LEN];
+        Crypto::derive_key(password, &salt, &mut key);
 
-        let key_hash = Crypto::hash(&cipher_key);
+        let key_hash = Crypto::hash(&key);
 
-        Crypto { salt, nonce, key_hash, cipher_key }
+        Crypto { salt, nonce, key_hash, key }
     }
     
     fn get_random_bytes(dest: &mut [u8]) {
@@ -61,12 +61,8 @@ impl Crypto {
         pbkdf2::derive(DIGEST_ALG, PBKDF2_ITERS, salt, password.as_bytes(), dest);
     }
 
-    fn verify_key(password: &str, salt: &[u8; SALT_LEN], file_key_hash: &[u8; HASH_LEN]) 
-            -> Result<(), error::Unspecified> {
-        let mut given_key = [0; KEY_LEN];
-        Crypto::derive_key(password, salt, &mut given_key);
-        let given_key_hash = Crypto::hash(&given_key);
-        constant_time::verify_slices_are_equal(&given_key_hash, file_key_hash)
+    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), error::Unspecified> {
+        constant_time::verify_slices_are_equal(&self.key_hash, file_key_hash)
     }
 
     fn hash(msg: &[u8]) -> [u8; HASH_LEN] {
@@ -79,7 +75,7 @@ impl Crypto {
     // Perhaps find a better way to handle memory here?
     // TODO: Change naming
     fn aes_encrypt<'a>(&self, mut plaintext: &'a mut [u8]) -> Result<&'a [u8], CryptoError> {
-        let seal_key = aead::SealingKey::new(AEAD_ALG, &self.cipher_key)
+        let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)
             .expect("Seal keygen failed");
         let size = aead::seal_in_place(&seal_key, &self.nonce, &[], &mut plaintext, TAG_LEN)
             .expect("Seal failed");
@@ -87,7 +83,7 @@ impl Crypto {
     }
     
     fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], CryptoError> {
-        let open_key = aead::OpeningKey::new(AEAD_ALG, &self.cipher_key)
+        let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)
             .expect("Open keygen failed");
         aead::open_in_place(&open_key, &self.nonce, &[], 0, ciphertext)
     }
@@ -128,7 +124,8 @@ mod tests {
                                        62, 212, 44, 248, 227, 0, 225, 58, 160, 25, 62, 112, 
                                        147, 98, 197, 141, 104, 22, 214, 232, 18];
         let correct_hash = Crypto::hash(&correct);
-        let result = Crypto::verify_key("test", &salt, &correct_hash);
+        let crypto = Crypto::new("test", salt, None);
+        let result = crypto.verify_key(&correct_hash);
         assert_eq!(result.unwrap(), ());
     }
 
@@ -139,7 +136,8 @@ mod tests {
                                        62, 212, 44, 248, 227, 0, 225, 58, 160, 25, 62, 112, 
                                        147, 98, 197, 141, 104, 22, 214, 232, 18];
         let incorrect_hash = Crypto::hash(&incorrect);
-        let result = Crypto::verify_key("test", &salt, &incorrect_hash);
+        let crypto = Crypto::new("test", salt, None);
+        let result = crypto.verify_key(&incorrect_hash);
         result.unwrap();
     }
 
