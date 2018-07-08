@@ -1,6 +1,7 @@
 extern crate scrypto;
 extern crate clap;
 mod file_handler;
+mod crypto;
 use clap::{Arg, App};
 use scrypto::{Operation, run};
 

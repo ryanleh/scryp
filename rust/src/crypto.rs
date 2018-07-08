@@ -5,13 +5,13 @@ use self::error::Unspecified as CryptoError;
 
 static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
-const TAG_LEN: usize = 16;
 const KEY_LEN: usize = 32;
 const SALT_LEN: usize = 16;
 // TODO: Fix nonce parameters
 const NONCE_LEN: usize = 12;
 const HASH_LEN: usize = 32;
 const PBKDF2_ITERS: u32 = 300000;
+const TAG_LEN: usize = 16;
 
 
 pub struct Crypto {
@@ -61,15 +61,16 @@ impl Crypto {
         pbkdf2::derive(DIGEST_ALG, PBKDF2_ITERS, salt, password.as_bytes(), dest);
     }
 
-    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), error::Unspecified> {
-        constant_time::verify_slices_are_equal(&self.key_hash, file_key_hash)
-    }
-
+    
     fn hash(msg: &[u8]) -> [u8; HASH_LEN] {
         let mut hash = [0; HASH_LEN];
         let hash_digest = digest::digest(DIGEST_ALG, msg);
         hash.copy_from_slice(&hash_digest.as_ref()[0..HASH_LEN]);
         hash
+    }
+
+    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), error::Unspecified> {
+        constant_time::verify_slices_are_equal(&self.key_hash, file_key_hash)
     }
 
     // Perhaps find a better way to handle memory here?
@@ -86,6 +87,12 @@ impl Crypto {
         let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)
             .expect("Open keygen failed");
         aead::open_in_place(&open_key, &self.nonce, &[], 0, ciphertext)
+    }
+
+    pub fn push_params<'a>(&'a self, content: &mut Vec<&'a [u8]>) {
+        content.push(&self.salt);
+        content.push(&self.key_hash);
+        content.push(&self.nonce);
     }
 }
 
