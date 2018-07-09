@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::str;
 use Operation;
 
 pub struct FileHandler<'a> {
@@ -56,12 +57,13 @@ impl<'a> FileHandler<'a> {
         self.write();
     }
 
-    pub fn unpack_enc(&mut self) -> (&str, &'a [u8]) {
-        let enc_split = self.content.split(b"/");
-        let orig_filename = enc_split.next()
-            .expect("Error getting orig filename from enc");
-        let content = enc_split.next()
-            .expect("Error getting content from enc");
+    pub fn unpack_enc(&self) -> (&str, &[u8]) {
+        let split = self.content.iter()
+            .position(|&b| b == b"/"[..][0])
+            .unwrap();
+        let (orig_filename_bytes, content) = self.content.split_at(split);
+        let orig_filename = str::from_utf8(orig_filename_bytes)
+            .expect("Filename failed to parse... tampering");
         (orig_filename, content)
     }
 

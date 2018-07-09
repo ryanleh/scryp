@@ -102,6 +102,21 @@ impl Crypto {
         params[SALT_LEN+HASH_LEN..].copy_from_slice(&self.nonce);
         params
     }
+
+    pub fn unpack_params<'a>(password: &str, params: &'a[u8]) -> (Crypto, &'a [u8]) {
+        // TODO: Make this better pls
+        let mut salt = [0; SALT_LEN];
+        salt.copy_from_slice(&params[..SALT_LEN]);
+        let mut key_hash = [0; HASH_LEN];
+        key_hash.copy_from_slice(&params[SALT_LEN..SALT_LEN+HASH_LEN]);
+        let mut nonce = [0; NONCE_LEN];
+        nonce.copy_from_slice(&params[SALT_LEN+HASH_LEN..PARAMS_LEN]);
+        let ciphertext = &param[PARAMS_LEN..];
+        let crypto = Crypto::new(password, salt, nonce);
+        crypto.verify_key(&key_hash)
+            .expect("Hashed password comparison failed");
+        (crypto, ciphertext)
+    }
 }
 
 

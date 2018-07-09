@@ -28,9 +28,10 @@ fn encryptor(filename: &str, password: &str, remove: bool) {
 
 fn decryptor(filename: &str, password: &str, remove: bool) {
     // Declaring early since it's borrowed be file_handler
-    let crypto: Crypto;
     let mut file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
-
+    let (filename, content) = file_handler.unpack_enc();
+    let (crypto, mut ciphertext) = Crypto::unpack_params(password, content);
+    let plaintext = crypto.aes_decrypt(&mut ciphertext, filename);
 
 }
 
