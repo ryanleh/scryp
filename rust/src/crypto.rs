@@ -97,8 +97,8 @@ impl Crypto {
     pub fn params(&self) -> [u8; PARAMS_LEN] {
         let mut params: [u8; PARAMS_LEN] = [0; PARAMS_LEN];
         params[..SALT_LEN].copy_from_slice(&self.salt);
-        params[SALT_LEN..HASH_LEN].copy_from_slice(&self.key_hash);
-        params[SALT_LEN+HASH_LEN..NONCE_LEN].copy_from_slice(&self.nonce);
+        params[SALT_LEN..SALT_LEN+HASH_LEN].copy_from_slice(&self.key_hash);
+        params[SALT_LEN+HASH_LEN..].copy_from_slice(&self.nonce);
         params
     }
 }

@@ -44,8 +44,13 @@ impl<'a> FileHandler<'a> {
     }
 
     pub fn create_enc(&mut self, params: &'a [u8], ciphertext: &'a [u8]) {
+        let mut enc_name = self.name.split(".")
+            .next()
+            .expect("Error parsing filename");
+        self.to_write_name = format!("{}.enc", enc_name);
+        println!("{}", self.to_write_name);
         self.to_write.push(self.name.as_bytes());
-        self.to_write.push(b"\\");
+        self.to_write.push(b"/");
         self.to_write.push(params);
         self.to_write.push(ciphertext);
         self.write();
