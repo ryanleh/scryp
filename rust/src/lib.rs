@@ -9,6 +9,7 @@ pub enum Operation {
     ENCRYPT,
 }
 
+// TODO: remove support
 fn encryptor(filename: &str, password: &str, remove: bool) {
     let mut buffer: Vec<u8> = Vec::new();
     let ciphertext: &[u8]; 
@@ -19,13 +20,18 @@ fn encryptor(filename: &str, password: &str, remove: bool) {
     {
     let plaintext: &Vec<u8> = file_handler.content();
     // TODO: Handle Error
-    ciphertext = crypto.aes_encrypt(plaintext, &mut buffer).unwrap();
+    ciphertext = crypto.aes_encrypt(plaintext, &mut buffer, filename).unwrap();
     }
 
     file_handler.create_enc(&params, ciphertext);
 }
 
 fn decryptor(filename: &str, password: &str, remove: bool) {
+    // Declaring early since it's borrowed be file_handler
+    let crypto: Crypto;
+    let mut file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
+
+
 }
 
 pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {

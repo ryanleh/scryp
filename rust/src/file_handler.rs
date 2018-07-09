@@ -30,7 +30,8 @@ impl<'a> FileHandler<'a> {
     pub fn content(&self) -> &Vec<u8> {
         &self.content
     }
-    
+   
+    // TODO: Rename all the things
     fn write(&mut self) {
         let mut buffer = File::create(&self.to_write_name)
             .expect("Error creating file (permissions issue?)");
@@ -48,12 +49,21 @@ impl<'a> FileHandler<'a> {
             .next()
             .expect("Error parsing filename");
         self.to_write_name = format!("{}.enc", enc_name);
-        println!("{}", self.to_write_name);
         self.to_write.push(self.name.as_bytes());
         self.to_write.push(b"/");
         self.to_write.push(params);
         self.to_write.push(ciphertext);
         self.write();
     }
+
+    pub fn unpack_enc(&mut self) -> (&str, &'a [u8]) {
+        let enc_split = self.content.split(b"/");
+        let orig_filename = enc_split.next()
+            .expect("Error getting orig filename from enc");
+        let content = enc_split.next()
+            .expect("Error getting content from enc");
+        (orig_filename, content)
+    }
+
 
 }

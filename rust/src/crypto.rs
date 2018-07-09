@@ -76,22 +76,23 @@ impl Crypto {
 
     // Perhaps find a better way to handle memory here?
     // TODO: Change naming
-    pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>) 
+    pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>, filename: &'a str) 
         -> Result<&'a [u8], CryptoError> {
         ciphertext.extend_from_slice(plaintext);
         ciphertext.extend_from_slice(&[0;TAG_LEN]);
 
         let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)
             .expect("Seal keygen failed");
-        let size = aead::seal_in_place(&seal_key, &self.nonce, &[], ciphertext, TAG_LEN)
-            .expect("Seal failed");
+        let size = aead::seal_in_place(&seal_key, &self.nonce, filename.as_bytes(), 
+                                       ciphertext, TAG_LEN).expect("Seal failed");
         Ok(&ciphertext[..size])
     }
     
-    pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], CryptoError> {
+    pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8], filename: &'a str) 
+            -> Result<&'a mut [u8], CryptoError> {
         let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)
             .expect("Open keygen failed");
-        aead::open_in_place(&open_key, &self.nonce, &[], 0, ciphertext)
+        aead::open_in_place(&open_key, &self.nonce, filename.as_bytes(), 0, ciphertext)
     }
 
     pub fn params(&self) -> [u8; PARAMS_LEN] {
