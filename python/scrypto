@@ -26,9 +26,7 @@ CIPHERS = {
         'AES-GCM': aead.AESGCM
 }
 HASHERS = {
-        'SHA512': hashes.SHA512(),
         'SHA256': hashes.SHA256(),
-        'BLAKE2': hashes.BLAKE2b(64)
 }
 backend = default_backend()
 
@@ -63,7 +61,7 @@ class Crypto(object):
                 is_equal = False
         return is_equal
 
-    def verify_password(self, key_hash, enc_content):
+    def verify_password(self, key_hash):
         """Verifies password hash"""
         # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, key_hash):
@@ -76,7 +74,7 @@ class Crypto(object):
         # smaller.
         # Using SHA256 to avoid https://eprint.iacr.org/2016/273.pdf
         kdf = PBKDF2HMAC(self.hasher,
-                         length=16,
+                         length=32,
                          salt=self.salt,
                          iterations=300000,
                          backend=default_backend()
@@ -90,15 +88,17 @@ class Crypto(object):
         hasher.update(msg)
         return hasher.finalize()
 
-    def aes_encrypt(self, plaintext):
+    def aes_encrypt(self, plaintext, filename):
         """Encrypts plaintext using specified cipher and provided key"""
-        ciphertext = self.cipher.encrypt(self.nonce, plaintext, None)
+        ciphertext = self.cipher.encrypt(self.nonce, plaintext,
+                                         bytes(filename, 'utf-8'))
         return ciphertext
 
-    def aes_decrypt(self, ciphertext):
+    def aes_decrypt(self, ciphertext, filename):
         """Decrypts ciphertext using specified cipher and provided key/nonce"""
         try:
-            plaintext = self.cipher.decrypt(self.nonce, ciphertext, None)
+            plaintext = self.cipher.decrypt(self.nonce, ciphertext,
+                                            bytes(filename, 'utf-8'))
         except InvalidTag:
             raise CryptoError("Invalid Tag --> File has been tampered with")
         return plaintext
@@ -123,35 +123,29 @@ class FileHandler(object):
     def generate_enc_file(self, crypto):
         """Returns all elements concatenated together and tagged correctly"""
         # Forward slashes are banned in filenames so use that as a separator
-        enc_content = (bytes(self.name, 'utf-8') + b"/" + crypto.nonce +
-                       self.content)
-        # Compute HMAC
-        self.name = self.name.split(".")[0]
-        self.name_to_write = self.name + '.enc'
-        self.to_write = crypto.salt + crypto.key_hash + enc_content
+        self.name_to_write = self.name.split(".")[0] + ".enc"
+        # TODO: Consider changing self.name to default bytes?
+        self.to_write = (bytes(self.name, 'utf-8') + b"/" + crypto.salt +
+                         crypto.key_hash + crypto.nonce + self.content)
 
     def decode_file(self, password):
         """Parses an encrypted file into the corresponding crypto object"""
         # Extract all components of file
         try:
-            salt = self.content[:16]
-            key_hash = self.content[16:48]
-
-            # Don't unpack enc_content immediately because it's used for tag
-            enc_content = self.content[48:]
-
-            self.name_to_write = str(enc_content.split(b"/")[0], 'utf-8')
-            # There's an extra +1 because of the forward slash
-            nonce = enc_content[len(self.name_to_write)+1:
-                                len(self.name_to_write)+17]
-            ciphertext = enc_content[len(self.name_to_write)+17:]
+            self.name_to_write = str(self.content.split(b"/")[0], 'utf-8')
+            # TODO: Rename again
+            content = self.content.split(b"/")[1]
+            salt = content[:16]
+            key_hash = content[16:48]
+            nonce = content[48:64]
+            ciphertext = content[64:]
         except IndexError:
             raise CryptoError("File has been tampered with")
 
         # Generate crypto object and verify integrity
         crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
-        crypto.verify_password(key_hash, enc_content)
-        return crypto, ciphertext
+        crypto.verify_password(key_hash)
+        return crypto, ciphertext, self.name_to_write
 
     def get_files(cwd, filenames, remove):
         """Return a list containing tuples of all filenames and plaintexts"""
@@ -194,7 +188,7 @@ def encryptor(password, cwd, file):
     crypto = Crypto("AES-GCM", "SHA256", password)
 
     # Encrypt and write file
-    ciphertext = crypto.aes_encrypt(plaintext)
+    ciphertext = crypto.aes_encrypt(plaintext, filename)
     file_handler = FileHandler(ciphertext, cwd, "Encrypt", filename)
     file_handler.generate_enc_file(crypto)
     file_handler.write()
@@ -205,10 +199,11 @@ def decryptor(password, cwd, file):
     # Parse file and create crypto object
     filename, enc_file = file
     file_handler = FileHandler(enc_file, cwd, "Decrypt", filename)
-    crypto, ciphertext = file_handler.decode_file(password)
+    # TODO: rename filename to something that doesn't conflict
+    crypto, ciphertext, filename = file_handler.decode_file(password)
 
     # Decrypt and write file
-    plaintext = crypto.aes_decrypt(ciphertext)
+    plaintext = crypto.aes_decrypt(ciphertext, filename)
     file_handler.to_write = plaintext
     file_handler.write()
 
