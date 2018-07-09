@@ -12,6 +12,7 @@ const NONCE_LEN: usize = 12;
 const HASH_LEN: usize = 32;
 const PBKDF2_ITERS: u32 = 300000;
 const TAG_LEN: usize = 16;
+const PARAMS_LEN: usize = SALT_LEN + HASH_LEN + NONCE_LEN;
 
 
 pub struct Crypto {
@@ -25,7 +26,7 @@ pub struct Crypto {
 impl Crypto {
     pub fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
             (password: &'a str, salt: T, nonce: V) -> Crypto {
-        let mut salt = match salt.into() {
+        let salt = match salt.into() {
             Some(s) => s,
             None => {
                 let mut temp = [0; SALT_LEN];
@@ -34,7 +35,7 @@ impl Crypto {
             },
         };
             
-        let mut nonce = match nonce.into() {
+        let nonce = match nonce.into() {
             Some(s) => s,
             None => {
                 let mut temp = [0; NONCE_LEN];
@@ -75,24 +76,30 @@ impl Crypto {
 
     // Perhaps find a better way to handle memory here?
     // TODO: Change naming
-    fn aes_encrypt<'a>(&self, mut plaintext: &'a mut [u8]) -> Result<&'a [u8], CryptoError> {
+    pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>) 
+        -> Result<&'a [u8], CryptoError> {
+        ciphertext.extend_from_slice(plaintext);
+        ciphertext.extend_from_slice(&[0;TAG_LEN]);
+
         let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)
             .expect("Seal keygen failed");
-        let size = aead::seal_in_place(&seal_key, &self.nonce, &[], &mut plaintext, TAG_LEN)
+        let size = aead::seal_in_place(&seal_key, &self.nonce, &[], ciphertext, TAG_LEN)
             .expect("Seal failed");
-        Ok(&plaintext[..size])
+        Ok(&ciphertext[..size])
     }
     
-    fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], CryptoError> {
+    pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8]) -> Result<&'a mut [u8], CryptoError> {
         let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)
             .expect("Open keygen failed");
         aead::open_in_place(&open_key, &self.nonce, &[], 0, ciphertext)
     }
 
-    pub fn push_params<'a>(&'a self, content: &mut Vec<&'a [u8]>) {
-        content.push(&self.salt);
-        content.push(&self.key_hash);
-        content.push(&self.nonce);
+    pub fn params(&self) -> [u8; PARAMS_LEN] {
+        let mut params: [u8; PARAMS_LEN] = [0; PARAMS_LEN];
+        params[..SALT_LEN].copy_from_slice(&self.salt);
+        params[SALT_LEN..HASH_LEN].copy_from_slice(&self.key_hash);
+        params[SALT_LEN+HASH_LEN..NONCE_LEN].copy_from_slice(&self.nonce);
+        params
     }
 }
 
@@ -120,7 +127,7 @@ mod tests {
         let expected: [u8; KEY_LEN] = [241, 38, 124, 132, 21, 185, 197, 23, 136, 236, 178, 
                                        62, 212, 44, 248, 227, 0, 225, 58, 160, 25, 62, 112, 
                                        147, 98, 197, 141, 104, 22, 214, 232, 18];
-        let mut actual = [0; KEY_LEN];
+        let actual = [0; KEY_LEN];
         Crypto::derive_key("test", &salt, &mut actual);
         assert_eq!(expected, actual);
     }
@@ -151,12 +158,11 @@ mod tests {
     #[test]
     fn test_aes_encrypt() {
         let crypto = Crypto::new("test", salt, nonce); 
-        let mut correct = [161, 199, 190, 204, 106, 148, 112, 203, 127, 207, 65, 77, 59, 48, 130, 
+        let correct = [161, 199, 190, 204, 106, 148, 112, 203, 127, 207, 65, 77, 59, 48, 130, 
                            165, 228, 1, 28, 204];
         let msg: String = "test".to_string();
-        let mut ciphertext: Vec<u8> = vec![0;msg.len()+TAG_LEN];
-        ciphertext[..msg.len()].copy_from_slice(msg.as_bytes());
-        let actual = crypto.aes_encrypt(&mut ciphertext).unwrap();
+        let mut ciphertext: Vec<u8> = Vec::new();
+        let actual = crypto.aes_encrypt(msg.as_bytes(), &mut ciphertext).unwrap();
         assert_eq!(correct, actual);
         
     }

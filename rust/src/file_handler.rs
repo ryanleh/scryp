@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
 use Operation;
-use crypto::Crypto;
 
 pub struct FileHandler<'a> {
     name: &'a str,
@@ -28,20 +27,28 @@ impl<'a> FileHandler<'a> {
         } 
     }
 
-    pub fn write(&self) {
+    pub fn content(&self) -> &Vec<u8> {
+        &self.content
+    }
+    
+    fn write(&mut self) {
         let mut buffer = File::create(&self.to_write_name)
             .expect("Error creating file (permissions issue?)");
-        buffer.write_all(self.name.as_bytes());
-        buffer.write_all(b"\\");
-        self.to_write.iter()
-            .map(|param| buffer.write_all(param));
+        for obj in self.to_write.iter() {
+            buffer.write_all(obj);
+        }
         match self.operation {
             Operation::DECRYPT => println!("File: {} decrypted!", self.name),
             Operation::ENCRYPT => println!("File: {} encrypted!", self.name),
         }
     }
 
-    fn create_enc(&mut self, crypto: &'a Crypto) {
-        crypto.push_params(&mut self.to_write);
+    pub fn create_enc(&mut self, params: &'a [u8], ciphertext: &'a [u8]) {
+        self.to_write.push(self.name.as_bytes());
+        self.to_write.push(b"\\");
+        self.to_write.push(params);
+        self.to_write.push(ciphertext);
+        self.write();
     }
+
 }
