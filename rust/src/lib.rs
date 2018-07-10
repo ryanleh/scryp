@@ -28,10 +28,21 @@ fn encryptor(filename: &str, password: &str, remove: bool) {
 
 fn decryptor(filename: &str, password: &str, remove: bool) {
     // Declaring early since it's borrowed be file_handler
+    let mut ciphertext = Vec::new();
+    let plaintext: &[u8];
     let mut file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
+
+    {
     let (filename, content) = file_handler.unpack_enc();
-    let (crypto, mut ciphertext) = Crypto::unpack_params(password, content);
-    let plaintext = crypto.aes_decrypt(&mut ciphertext, filename);
+    // TODO: derive better handling of ciphertext
+    let (crypto, temp_ciphertext) = Crypto::unpack_params(password, content);
+    ciphertext = vec![0; temp_ciphertext.len()];
+    ciphertext[..temp_ciphertext.len()].copy_from_slice(temp_ciphertext);
+    plaintext = crypto.aes_decrypt(&mut ciphertext, filename)
+        .expect("Decryption Failed");
+    }
+
+    file_handler.create_orig(plaintext);
 
 }
 

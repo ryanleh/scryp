@@ -88,7 +88,7 @@ impl Crypto {
         Ok(&ciphertext[..size])
     }
     
-    pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8], filename: &'a str) 
+    pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8], filename: &str) 
             -> Result<&'a mut [u8], CryptoError> {
         let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)
             .expect("Open keygen failed");
@@ -111,7 +111,7 @@ impl Crypto {
         key_hash.copy_from_slice(&params[SALT_LEN..SALT_LEN+HASH_LEN]);
         let mut nonce = [0; NONCE_LEN];
         nonce.copy_from_slice(&params[SALT_LEN+HASH_LEN..PARAMS_LEN]);
-        let ciphertext = &param[PARAMS_LEN..];
+        let ciphertext = &params[PARAMS_LEN..];
         let crypto = Crypto::new(password, salt, nonce);
         crypto.verify_key(&key_hash)
             .expect("Hashed password comparison failed");
@@ -127,6 +127,8 @@ mod tests {
     const test: [u8; 4] = [116, 101, 115, 116];
     const salt: [u8; SALT_LEN] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2];
     const nonce: [u8; NONCE_LEN] = [0; NONCE_LEN];
+    const filename: &str = "test.txt";
+
     #[test]
     fn test_hash() {
         // Compute SHA256("test")
@@ -143,7 +145,7 @@ mod tests {
         let expected: [u8; KEY_LEN] = [241, 38, 124, 132, 21, 185, 197, 23, 136, 236, 178, 
                                        62, 212, 44, 248, 227, 0, 225, 58, 160, 25, 62, 112, 
                                        147, 98, 197, 141, 104, 22, 214, 232, 18];
-        let actual = [0; KEY_LEN];
+        let mut actual = [0; KEY_LEN];
         Crypto::derive_key("test", &salt, &mut actual);
         assert_eq!(expected, actual);
     }
@@ -171,14 +173,17 @@ mod tests {
         result.unwrap();
     }
 
+     /*let mut ciphertext = [161, 199, 190, 204, 106, 148, 112, 203, 127, 207, 65, 77, 59, 48,
+                              130, 165, 228, 1, 28, 204];*/
+
     #[test]
     fn test_aes_encrypt() {
         let crypto = Crypto::new("test", salt, nonce); 
-        let correct = [161, 199, 190, 204, 106, 148, 112, 203, 127, 207, 65, 77, 59, 48, 130, 
-                           165, 228, 1, 28, 204];
+        let correct = [161, 199, 190, 204, 58, 189, 4, 240, 55, 139, 246, 96, 177, 30, 206, 
+                       230, 234, 117, 164, 93];
         let msg: String = "test".to_string();
         let mut ciphertext: Vec<u8> = Vec::new();
-        let actual = crypto.aes_encrypt(msg.as_bytes(), &mut ciphertext).unwrap();
+        let actual = crypto.aes_encrypt(msg.as_bytes(), &mut ciphertext, filename).unwrap();
         assert_eq!(correct, actual);
         
     }
@@ -187,9 +192,9 @@ mod tests {
     fn test_aes_decrypt() {
         let crypto = Crypto::new("test", salt, nonce); 
         let correct = "test".to_string();
-        let mut ciphertext = [161, 199, 190, 204, 106, 148, 112, 203, 127, 207, 65, 77, 59, 48,
-                              130, 165, 228, 1, 28, 204];
-        let plaintext = crypto.aes_decrypt(&mut ciphertext).unwrap();
+        let mut ciphertext = [161, 199, 190, 204, 58, 189, 4, 240, 55, 139, 246, 96, 177, 
+                              30, 206, 230, 234, 117, 164, 93];
+        let plaintext = crypto.aes_decrypt(&mut ciphertext, filename).unwrap();
         assert_eq!(correct.as_bytes(), plaintext);
     }
 }

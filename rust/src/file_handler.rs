@@ -57,15 +57,21 @@ impl<'a> FileHandler<'a> {
         self.write();
     }
 
-    pub fn unpack_enc(&self) -> (&str, &[u8]) {
+    // TODO: Perhaps not make this self mutable and handle filename in create?
+    pub fn unpack_enc(&mut self) -> (&str, &[u8]) {
         let split = self.content.iter()
             .position(|&b| b == b"/"[..][0])
             .unwrap();
-        let (orig_filename_bytes, content) = self.content.split_at(split);
-        let orig_filename = str::from_utf8(orig_filename_bytes)
+        let orig_filename = str::from_utf8(&self.content[..split])
             .expect("Filename failed to parse... tampering");
+        let content = &self.content[split+1..];
+        self.to_write_name = orig_filename.to_string();
         (orig_filename, content)
     }
 
-
+    pub fn create_orig(&mut self, plaintext: &'a [u8]) {
+        self.to_write.push(plaintext);
+        self.write()
+    }
 }
+
