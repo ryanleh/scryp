@@ -40,7 +40,7 @@ class CryptoError(Exception):
 class Crypto(object):
     """Handles all cryptographic operations"""
     def __init__(self, cipher, hasher, password, salt=None, nonce=None):
-        self.nonce = nonce or self.get_random_bytes(16)
+        self.nonce = nonce or self.get_random_bytes(12)
         self.hasher = HASHERS[hasher]
         self.salt = salt or self.get_random_bytes(16)
         self.key = self.derive_key(password)
@@ -137,11 +137,14 @@ class FileHandler(object):
             content = self.content.split(b"/")[1]
             salt = content[:16]
             key_hash = content[16:48]
-            nonce = content[48:64]
-            ciphertext = content[64:]
+            nonce = content[48:60]
+            ciphertext = content[60:]
         except IndexError:
             raise CryptoError("File has been tampered with")
-
+        print([i for i in salt])
+        print([i for i in key_hash])
+        print([i for i in nonce])
+        print([i for i in ciphertext])
         # Generate crypto object and verify integrity
         crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
         crypto.verify_password(key_hash)
