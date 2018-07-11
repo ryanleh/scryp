@@ -9,40 +9,38 @@ pub enum Operation {
     ENCRYPT,
 }
 
-// TODO: remove support
+// TODO: handle remove
 fn encryptor(filename: &str, password: &str, remove: bool) {
-    let mut buffer: Vec<u8> = Vec::new();
-    let ciphertext: &[u8]; 
+    let mut ciphertext: Vec<u8> = Vec::new();
     let crypto = Crypto::new(password, None, None);
     let params = crypto.params();
-    let mut file_handler = FileHandler::new(filename, &Operation::ENCRYPT, remove);
-
-    {
-    let plaintext: &Vec<u8> = file_handler.content();
+    let file_handler = FileHandler::new(filename, &Operation::ENCRYPT, remove);
     // TODO: Handle Error
-    ciphertext = crypto.aes_encrypt(plaintext, &mut buffer, filename).unwrap();
-    }
-
-    file_handler.create_enc(&params, ciphertext);
+    crypto.aes_encrypt(file_handler.content(), &mut ciphertext, filename);
+    
+    // Making assumption that ciphertext is always full length of ciphertext buffer
+    // (which should be true)
+    file_handler.create_enc(&params, &ciphertext);
 }
 
 fn decryptor(filename: &str, password: &str, remove: bool) {
     // Declaring early since it's borrowed be file_handler
-    let mut ciphertext = Vec::new();
+    let mut ciphertext: Vec<u8> = Vec::new();
     let plaintext: &[u8];
-    let mut file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
+    let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
 
-    {
     let (filename, content) = file_handler.unpack_enc();
-    // TODO: derive better handling of ciphertext
-    let (crypto, temp_ciphertext) = Crypto::unpack_params(password, content);
-    ciphertext = vec![0; temp_ciphertext.len()];
-    ciphertext[..temp_ciphertext.len()].copy_from_slice(temp_ciphertext);
+
+    // TODO: Do this with split?
+    let params = &content[..crypto::PARAMS_LEN];
+
+    // TODO: fix this
+    ciphertext[..content.len()-params.len()].copy_from_slice(&content[crypto::PARAMS_LEN..]);
+    let crypto = Crypto::from_params(password, params);
     plaintext = crypto.aes_decrypt(&mut ciphertext, filename)
         .expect("Decryption Failed");
-    }
 
-    file_handler.create_orig(plaintext);
+    file_handler.create_orig(plaintext, filename);
 
 }
 

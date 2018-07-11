@@ -7,12 +7,11 @@ static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
 const KEY_LEN: usize = 32;
 const SALT_LEN: usize = 16;
-// TODO: Fix nonce parameters
 const NONCE_LEN: usize = 12;
 const HASH_LEN: usize = 32;
 const PBKDF2_ITERS: u32 = 300000;
 const TAG_LEN: usize = 16;
-const PARAMS_LEN: usize = SALT_LEN + HASH_LEN + NONCE_LEN;
+pub const PARAMS_LEN: usize = SALT_LEN + HASH_LEN + NONCE_LEN;
 
 
 pub struct Crypto {
@@ -26,6 +25,7 @@ pub struct Crypto {
 impl Crypto {
     pub fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
             (password: &'a str, salt: T, nonce: V) -> Crypto {
+        // Match salt to provided input or randomness
         let salt = match salt.into() {
             Some(s) => s,
             None => {
@@ -34,7 +34,7 @@ impl Crypto {
                 temp
             },
         };
-            
+        // Match nonce to provided input or randomness
         let nonce = match nonce.into() {
             Some(s) => s,
             None => {
@@ -43,7 +43,7 @@ impl Crypto {
                 temp
             },
         };
-
+        // Use PBKDF2 to derive key and hash it
         let mut key = [0; KEY_LEN];
         Crypto::derive_key(password, &salt, &mut key);
 
@@ -76,15 +76,18 @@ impl Crypto {
 
     // Perhaps find a better way to handle memory here?
     // TODO: Change naming
-    pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>, filename: &'a str) 
+    pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>, filename: &str) 
         -> Result<&'a [u8], CryptoError> {
+        // Since seal_in_place rewrites the original plaintext vector to store ciphertext, we have
+        // to copy the plaintext into the ciphertext vector and add space for the tag
         ciphertext.extend_from_slice(plaintext);
         ciphertext.extend_from_slice(&[0;TAG_LEN]);
 
         let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)
             .expect("Seal keygen failed");
         let size = aead::seal_in_place(&seal_key, &self.nonce, filename.as_bytes(), 
-                                       ciphertext, TAG_LEN).expect("Seal failed");
+                                       ciphertext, TAG_LEN)
+            .expect("Seal failed");
         Ok(&ciphertext[..size])
     }
     
@@ -103,7 +106,7 @@ impl Crypto {
         params
     }
 
-    pub fn unpack_params<'a>(password: &str, params: &'a[u8]) -> (Crypto, &'a [u8]) {
+    pub fn from_params(password: &str, params: &[u8]) -> Crypto {
         // TODO: Make this better pls
         let mut salt = [0; SALT_LEN];
         salt.copy_from_slice(&params[..SALT_LEN]);
@@ -111,11 +114,10 @@ impl Crypto {
         key_hash.copy_from_slice(&params[SALT_LEN..SALT_LEN+HASH_LEN]);
         let mut nonce = [0; NONCE_LEN];
         nonce.copy_from_slice(&params[SALT_LEN+HASH_LEN..PARAMS_LEN]);
-        let ciphertext = &params[PARAMS_LEN..];
         let crypto = Crypto::new(password, salt, nonce);
         crypto.verify_key(&key_hash)
             .expect("Hashed password comparison failed");
-        (crypto, ciphertext)
+        crypto
     }
 }
 
