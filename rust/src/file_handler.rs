@@ -58,7 +58,6 @@ impl<'a> FileHandler<'a> {
         self.write(&filename, &enc_content);
     }
 
-    // TODO: Perhaps not make this self mutable and handle filename in create?
     pub fn unpack_enc(&self) -> (&str, &[u8]) {
         let split = self.content.iter()
             .position(|&b| b == b"/"[..][0])

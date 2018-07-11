@@ -107,9 +107,9 @@ impl Crypto {
     }
 
     pub fn from_params(password: &str, params: &[u8]) -> Crypto {
-        // TODO: Make this better pls
         let mut salt = [0; SALT_LEN];
         salt.copy_from_slice(&params[..SALT_LEN]);
+        // TODO: Perhaps don't need to make constant array here
         let mut key_hash = [0; HASH_LEN];
         key_hash.copy_from_slice(&params[SALT_LEN..SALT_LEN+HASH_LEN]);
         let mut nonce = [0; NONCE_LEN];
