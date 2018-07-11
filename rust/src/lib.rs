@@ -47,7 +47,8 @@ fn decryptor(filename: &str, password: &str, remove: bool) {
 }
 
 pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
-    let password = rpassword::prompt_password_stdout("Password: ").unwrap();
+    //let password = rpassword::prompt_password_stdout("Password: ").unwrap();
+    let password = &"test";
     for filename in filenames.iter() {
         let modifier = match operation {
             Operation::DECRYPT => decryptor,
