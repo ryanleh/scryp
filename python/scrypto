@@ -218,7 +218,8 @@ if __name__ == "__main__":
     filenames = args.filenames
     remove = args.remove
     decrypt = args.decrypt
-    password = bytes(getpass.getpass(), 'utf-8')
+    #password = bytes(getpass.getpass(), 'utf-8')
+    password = bytes("test", 'utf-8')
     files = FileHandler.get_files(cwd, filenames, remove)
 
     # Set modifer functions depending on user-requested action
