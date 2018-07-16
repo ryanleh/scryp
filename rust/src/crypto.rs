@@ -77,7 +77,7 @@ impl Crypto {
     // Perhaps find a better way to handle memory here?
     // TODO: Change naming
     pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>, filename: &str) 
-        -> Result<&'a [u8], CryptoError> {
+        -> Result<(), CryptoError> {
         // Since seal_in_place rewrites the original plaintext vector to store ciphertext, we have
         // to copy the plaintext into the ciphertext vector and add space for the tag
         ciphertext.extend_from_slice(plaintext);
@@ -85,10 +85,10 @@ impl Crypto {
 
         let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)
             .expect("Seal keygen failed");
-        let size = aead::seal_in_place(&seal_key, &self.nonce, filename.as_bytes(), 
+        aead::seal_in_place(&seal_key, &self.nonce, filename.as_bytes(), 
                                        ciphertext, TAG_LEN)
             .expect("Seal failed");
-        Ok(&ciphertext[..size])
+        Ok(())
     }
     
     pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8], filename: &str) 
@@ -108,12 +108,13 @@ impl Crypto {
 
     pub fn from_params(password: &str, params: &[u8]) -> Crypto {
         let mut salt = [0; SALT_LEN];
-        salt.copy_from_slice(&params[..SALT_LEN]);
-        // TODO: Perhaps don't need to make constant array here
         let mut key_hash = [0; HASH_LEN];
-        key_hash.copy_from_slice(&params[SALT_LEN..SALT_LEN+HASH_LEN]);
         let mut nonce = [0; NONCE_LEN];
+
+        salt.copy_from_slice(&params[..SALT_LEN]);
+        key_hash.copy_from_slice(&params[SALT_LEN..SALT_LEN+HASH_LEN]);
         nonce.copy_from_slice(&params[SALT_LEN+HASH_LEN..PARAMS_LEN]);
+
         let crypto = Crypto::new(password, salt, nonce);
         crypto.verify_key(&key_hash)
             .expect("Hashed password comparison failed");
