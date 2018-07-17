@@ -45,7 +45,7 @@ impl<'a> FileHandler<'a> {
         let mut enc_content = Vec::new();
         
         // Strip old file name of suffix and add on enc
-        let mut enc_name = self.name.split(".")
+        let enc_name = self.name.split(".")
             .next()
             .expect("Error parsing filename");
         let filename = format!("{}.enc", enc_name);
