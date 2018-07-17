@@ -24,29 +24,25 @@ fn encryptor(filename: &str, password: &str, remove: bool) {
 }
 
 fn decryptor(filename: &str, password: &str, remove: bool) {
-    // Declaring early since it's borrowed be file_handler
-    let mut ciphertext: Vec<u8> = Vec::new();
+    let mut ciphertext: Vec<u8>; 
     let plaintext: &[u8];
     let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
 
     let (filename, content) = file_handler.unpack_enc();
 
-    // TODO: Do this with split?
-    let params = &content[..crypto::PARAMS_LEN];
+    let (params, temp_slice) = content.split_at(crypto::PARAMS_LEN);
+    ciphertext = vec![0; temp_slice.len()];
+    ciphertext[..temp_slice.len()].copy_from_slice(temp_slice);
 
-    // TODO: fix this
-    ciphertext[..content.len()-params.len()].copy_from_slice(&content[crypto::PARAMS_LEN..]);
     let crypto = Crypto::from_params(password, params);
     plaintext = crypto.aes_decrypt(&mut ciphertext, filename)
         .expect("Decryption Failed");
 
     file_handler.create_orig(plaintext, filename);
-
 }
 
 pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
-    //let password = rpassword::prompt_password_stdout("Password: ").unwrap();
-    let password = &"test";
+    let password = rpassword::prompt_password_stdout("Password: ").unwrap();
     for filename in filenames.iter() {
         let modifier = match operation {
             Operation::DECRYPT => decryptor,
