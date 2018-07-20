@@ -34,7 +34,8 @@ fn decryptor(filename: &str, password: &str, remove: bool) {
     ciphertext = vec![0; temp_slice.len()];
     ciphertext[..temp_slice.len()].copy_from_slice(temp_slice);
 
-    let crypto = Crypto::from_params(password, params);
+    let crypto = Crypto::from_params(password, params)
+        .expect("Failed to parse crypto params");
     plaintext = crypto.aes_decrypt(&mut ciphertext, filename)
         .expect("Decryption Failed");
 
