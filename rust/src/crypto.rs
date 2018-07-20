@@ -73,31 +73,28 @@ impl Crypto {
         hash
     }
 
-    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), error::Unspecified> {
+    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), CryptoError> {
         constant_time::verify_slices_are_equal(&self.key_hash, file_key_hash)
     }
 
-    // Perhaps find a better way to handle memory here?
     // TODO: Change naming
     pub fn aes_encrypt<'a>(&self, plaintext: &[u8], ciphertext: &'a mut Vec<u8>, filename: &str) 
-        -> Result<(), CryptoError> {
+            -> Result<(), CryptoError> {
         // Since seal_in_place rewrites the original plaintext vector to store ciphertext, we have
         // to copy the plaintext into the ciphertext vector and add space for the tag
         ciphertext.extend_from_slice(plaintext);
         ciphertext.extend_from_slice(&[0;TAG_LEN]);
 
-        let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)
-            .expect("Seal keygen failed");
-        aead::seal_in_place(&seal_key, &self.nonce, filename.as_bytes(), 
-                                       ciphertext, TAG_LEN)
-            .expect("Seal failed");
+        let seal_key = aead::SealingKey::new(AEAD_ALG, &self.key)?;
+        aead::seal_in_place(&seal_key, &self.nonce, filename.as_bytes(), ciphertext, TAG_LEN)?;
         Ok(())
     }
-    
+   
+    /// Decrypts and authenticates the ciphertext in place and returns a slice containing
+    /// the plaintext
     pub fn aes_decrypt<'a>(&self, ciphertext: &'a mut [u8], filename: &str) 
             -> Result<&'a mut [u8], CryptoError> {
-        let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)
-            .expect("Open keygen failed");
+        let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)?;
         aead::open_in_place(&open_key, &self.nonce, filename.as_bytes(), 0, ciphertext)
     }
 
@@ -109,7 +106,7 @@ impl Crypto {
         params
     }
 
-    pub fn from_params(password: &str, params: &[u8]) -> Crypto {
+    pub fn from_params(password: &str, params: &[u8]) -> Result<Crypto, CryptoError> {
         let mut salt = [0; SALT_LEN];
         let mut key_hash = [0; HASH_LEN];
         let mut nonce = [0; NONCE_LEN];
@@ -119,9 +116,8 @@ impl Crypto {
         nonce.copy_from_slice(&params[SALT_LEN+HASH_LEN..PARAMS_LEN]);
 
         let crypto = Crypto::new(password, salt, nonce);
-        crypto.verify_key(&key_hash)
-            .expect("Hashed password comparison failed");
-        crypto
+        crypto.verify_key(&key_hash)?;
+        Ok(crypto)
     }
 }
 
