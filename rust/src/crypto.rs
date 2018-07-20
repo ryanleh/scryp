@@ -23,14 +23,16 @@ pub struct Crypto {
 
 
 impl Crypto {
-    pub fn new<'a, T: Into<Option<[u8; SALT_LEN]>>, V: Into<Option<[u8; NONCE_LEN]>>>
-            (password: &'a str, salt: T, nonce: V) -> Crypto {
+    pub fn new<'a> (password: &'a str,
+                    salt: Option<[u8; SALT_LEN]>, 
+                    nonce: Option<[u8; NONCE_LEN]>) -> Crypto {
         // Match salt to provided input or randomness
-        let salt = match salt.into() {
+        let salt = match salt {
             Some(s) => s,
             None => {
                 let mut temp = [0; SALT_LEN];
-                Crypto::get_random_bytes(&mut temp);
+                Crypto::get_random_bytes(&mut temp)
+                    .expect("Failed to generate random bytes for salt");
                 temp
             },
         };
@@ -39,7 +41,8 @@ impl Crypto {
             Some(s) => s,
             None => {
                 let mut temp = [0; NONCE_LEN];
-                Crypto::get_random_bytes(&mut temp);
+                Crypto::get_random_bytes(&mut temp)
+                    .expect("Failed to generate random bytes for nonce");
                 temp
             },
         };
@@ -52,10 +55,10 @@ impl Crypto {
         Crypto { salt, nonce, key_hash, key }
     }
     
-    fn get_random_bytes(dest: &mut [u8]) {
+    fn get_random_bytes(dest: &mut [u8]) -> Result<(), CryptoError> {
         let random = SystemRandom::new();
-        random.fill(dest)
-            .expect("Failed to fill dest");
+        random.fill(dest)?;
+        Ok(())
     }
 
     fn derive_key(password: &str, salt: &[u8; SALT_LEN], dest: &mut [u8]) {
