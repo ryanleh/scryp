@@ -22,9 +22,15 @@ fn encryptor(filename: &str, password: &str, remove: bool) {
     // Making assumption that ciphertext is always full length of ciphertext buffer
     // (which should be true)
     file_handler.create_enc(&params, &ciphertext);
+
+    // TODO: this will eventually have a guard so if writing file fails 
+    // this won't remove original
+    if remove {
+        file_handler.del_original();
+    };
 }
 
-fn decryptor(filename: &str, password: &str, remove: bool) -> Result<(), > {
+fn decryptor(filename: &str, password: &str, remove: bool) -> () {
     let mut ciphertext: Vec<u8>; 
     let plaintext: &[u8];
     let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
@@ -36,11 +42,26 @@ fn decryptor(filename: &str, password: &str, remove: bool) -> Result<(), > {
     ciphertext[..temp_slice.len()].copy_from_slice(temp_slice);
 
     // TODO: This is a timing attack I'm pretty sure
-    let crypto = Crypto::from_params(password, params).unwrap()?;
+    let crypto = Crypto::from_params(password, params).unwrap_or_else(|e| {
+        println!("{}: Password incorrect or file has been tampered with", filename);
+        // TODO: This should simply return an error instead of killing the process
+        process::exit(1);
+    });
     
-    plaintext = crypto.aes_decrypt(&mut ciphertext, filename).unwrap()?;
+    plaintext = crypto.aes_decrypt(&mut ciphertext, filename).unwrap_or_else(|e| {
+        println!("{}: Decryption failed", filename);
+        // TODO: This should simply return an error instead of killing the process
+        process::exit(1);
+    });
 
     file_handler.create_orig(plaintext, filename);
+
+    // TODO: this will eventually have a guard so if writing file fails 
+    // this won't remove original
+    if remove {
+        file_handler.del_original();
+    };
+
 }
 
 pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
@@ -50,15 +71,6 @@ pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
             Operation::DECRYPT => decryptor,
             Operation::ENCRYPT => encryptor,
         };
-        match modifier(filename, &password, remove){
-            Ok(_) => ,
-            //TODO: make this cleaner/clearer
-            Err(e) if modifier == Operation::DECRYPT {
-                println!("{}: Password incorrect or file has been tampered with", filename);
-            },
-            Err(e) if modifier == Operation::ENCRYPT {
-                println!("{}: Failed to encrypt", filename);
-            }
-        }
+        modifier(filename, &password, remove);
     }
 }

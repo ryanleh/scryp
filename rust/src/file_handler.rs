@@ -1,5 +1,7 @@
 use std::fs::File;
-use std::io::prelude::*;
+use std::io;
+use self::io::prelude::*;
+use std::fs;
 use std::str;
 use Operation;
 
@@ -41,13 +43,18 @@ impl<'a> FileHandler<'a> {
         }
     }
 
+    pub fn del_original(&self) {
+        fs::remove_file(self.name); 
+    }
+
     pub fn create_enc(&self, params: &'a [u8], ciphertext: &'a [u8]) {
         let mut enc_content = Vec::new();
         
         // Strip old file name of suffix and add on enc
+        // TODO: Handle this error properly
         let enc_name = self.name.split(".")
             .next()
-            .expect("Error parsing filename");
+            .unwrap();
         let filename = format!("{}.enc", enc_name);
 
         // Push all components to be written
