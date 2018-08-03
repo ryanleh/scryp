@@ -15,6 +15,7 @@ pub struct FileHandler<'a> {
 impl<'a> FileHandler<'a> {
     pub fn new(name: &'a str, operation: &'a Operation, remove: bool) -> FileHandler<'a> {
         let mut content = Vec::new();
+        // TODO: Handle with result
         File::open(&name)
             .expect("Error opening file")
             .read_to_end(&mut content)
@@ -41,10 +42,9 @@ impl<'a> FileHandler<'a> {
             Operation::DECRYPT => println!("File: {} decrypted!", self.name),
             Operation::ENCRYPT => println!("File: {} encrypted!", self.name),
         }
-    }
-
-    pub fn del_original(&self) {
-        fs::remove_file(self.name); 
+        if self.remove {
+            fs::remove_file(self.name); 
+        }
     }
 
     pub fn create_enc(&self, params: &'a [u8], ciphertext: &'a [u8]) {

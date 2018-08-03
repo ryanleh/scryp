@@ -22,12 +22,6 @@ fn encryptor(filename: &str, password: &str, remove: bool) {
     // Making assumption that ciphertext is always full length of ciphertext buffer
     // (which should be true)
     file_handler.create_enc(&params, &ciphertext);
-
-    // TODO: this will eventually have a guard so if writing file fails 
-    // this won't remove original
-    if remove {
-        file_handler.del_original();
-    };
 }
 
 fn decryptor(filename: &str, password: &str, remove: bool) -> () {
@@ -42,26 +36,19 @@ fn decryptor(filename: &str, password: &str, remove: bool) -> () {
     ciphertext[..temp_slice.len()].copy_from_slice(temp_slice);
 
     // TODO: This is a timing attack I'm pretty sure
-    let crypto = Crypto::from_params(password, params).unwrap_or_else(|e| {
+    let crypto = Crypto::from_params(password, params).unwrap_or_else(|_e| {
         println!("{}: Password incorrect or file has been tampered with", filename);
         // TODO: This should simply return an error instead of killing the process
         process::exit(1);
     });
     
-    plaintext = crypto.aes_decrypt(&mut ciphertext, filename).unwrap_or_else(|e| {
+    plaintext = crypto.aes_decrypt(&mut ciphertext, filename).unwrap_or_else(|_e| {
         println!("{}: Decryption failed", filename);
         // TODO: This should simply return an error instead of killing the process
         process::exit(1);
     });
 
     file_handler.create_orig(plaintext, filename);
-
-    // TODO: this will eventually have a guard so if writing file fails 
-    // this won't remove original
-    if remove {
-        file_handler.del_original();
-    };
-
 }
 
 pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {

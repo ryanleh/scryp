@@ -141,10 +141,6 @@ class FileHandler(object):
             ciphertext = content[60:]
         except IndexError:
             raise CryptoError("File has been tampered with")
-        print([i for i in salt])
-        print([i for i in key_hash])
-        print([i for i in nonce])
-        print([i for i in ciphertext])
         # Generate crypto object and verify integrity
         crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
         crypto.verify_password(key_hash)
