@@ -3,20 +3,19 @@
 
 All of the free file encryptors I found online either were way too feature-packed or didn't handle encrypting multiple files well so I decided to make my own.  
 
+DISCLAIMER: Use at your own risk.  While I have tried to follow best practices, this program has not been thouroughly tested to be secure
+
 #### Encryption works as follows:  
-1. Generate 32-byte key by applying PBKDF2-HMAC-SHA256 to user-provided password + random salt
-2. Split key into 16-byte K<sub>AES</sub> and K<sub>MAC</sub>
-3. Encrypt data under K<sub>AES</sub> using 128-bit AES-CTR with random 12-byte nonce and 4-byte counter &asymp; 68Gb encryption limit
-4. Generate tag of {filename || nonce || encrypted data} under K<sub>MAC</sub> using HMAC-SHA256
-5. Hash K<sub>AES</sub> || K<sub>MAC</sub> with SHA256
-6. Store salt, hash, tag, filename, nonce and encrypted data
+1. Generate 32-byte key by applying PBKDF2-HMAC-SHA256 to user-provided password with a random 16-byte salt
+2. Encrypt data under key using 256-bit AES-GCM with a random 12-byte nonce and the filename as additional authentication data
+3. Hash key with SHA256
+4. Store filename, salt, hash, nonce, and encrypted data
 
 #### Decryption works as follows:
 1. Apply PBKDF2-HMAC-SHA256 to user-provided password + salt in file to regenerate key
 2. Check that the hash of the new key matches the file-provided hash
-3. Verify the tag with re-derived K<sub>MAC</sub>
-4. Decrypt the file with re-derived K<sub>AES</sub> and given nonce
+3. Decrypt the file with using re-derived key, ciphertext, nonce, and filename
 
 #### Random notes to keep in mind:
-* Doesn't support file paths so you have to be in the same directory as the file you're encrypt/decrypting
 * I use a large number of PBKDF2 iterations since personally the files I'm encrypting are small... you may want to change this
+* Some issues still remain with encrypting/decrypting files outside the current directory
