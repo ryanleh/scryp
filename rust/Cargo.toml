@@ -1,0 +1,9 @@
+[package]
+name = "scrypto"
+version = "0.1.0"
+authors = ["Ryan Lehmkuhl <ryanleh.ob@gmail.com>"]
+
+[dependencies]
+ring = "0.12.1"
+clap = "2.32.0"
+rpassword = "1.0.0"
