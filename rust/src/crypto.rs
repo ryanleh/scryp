@@ -116,7 +116,7 @@ impl Crypto {
         nonce.copy_from_slice(&params[SALT_LEN+HASH_LEN..PARAMS_LEN]);
 
         let crypto = Crypto::new(password, Some(salt), Some(nonce));
-        crypto.verify_key(&key_hash)?;
+        crypto.verify_key(&key_hash)?; 
         Ok(crypto)
     }
 }
