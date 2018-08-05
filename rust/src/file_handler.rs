@@ -31,8 +31,8 @@ impl<'a> FileHandler<'a> {
         &self.content
     }
    
-    // TODO: Rename all the things
     fn write(&self, filename: &str, content: &Vec<&[u8]>) {
+        // TODO: Handle better
         let mut buffer = File::create(filename)
             .expect("Error creating file (permissions issue?)");
         for obj in content.iter() {
@@ -69,11 +69,12 @@ impl<'a> FileHandler<'a> {
         let split = self.content.iter()
             .position(|&b| b == b"/"[..][0])
             .unwrap();
+        // TODO: Handle pls
         let orig_filename = str::from_utf8(&self.content[..split])
             .expect("Filename failed to parse... tampering");
         // +1 is to not include the actual forward slash
-        let content = &self.content[split+1..];
-        (orig_filename, content)
+        let crypto_content = &self.content[split+1..];
+        (orig_filename, crypto_content)
     }
 
     pub fn create_orig(&self, plaintext: &[u8], filename: &str) {

@@ -2,62 +2,52 @@ extern crate rpassword;
 pub mod crypto;
 pub mod file_handler;
 use file_handler::FileHandler;
-use crypto::Crypto;
-use std::process;
+use crypto::{ CryptoError, Crypto };
 
 pub enum Operation {
     DECRYPT,
     ENCRYPT,
 }
 
-// TODO: handle remove
-fn encryptor(filename: &str, password: &str, remove: bool) {
+fn encryptor(filename: &str, password: &str, remove: bool) -> Result<(), CryptoError>{
     let mut ciphertext: Vec<u8> = Vec::new();
-    let crypto = Crypto::new(password, None, None);
+    // TODO: Handle Error
+    let crypto = Crypto::new(password, None, None)?;
     let params = crypto.params();
     let file_handler = FileHandler::new(filename, &Operation::ENCRYPT, remove);
-    // TODO: Handle Error
-    crypto.aes_encrypt(file_handler.content(), &mut ciphertext, filename);
+    crypto.aes_encrypt(file_handler.content(), &mut ciphertext, filename)?;
 
     // Making assumption that ciphertext is always full length of ciphertext buffer
     // (which should be true)
     file_handler.create_enc(&params, &ciphertext);
+    Ok(())
 }
 
-fn decryptor(filename: &str, password: &str, remove: bool) -> () {
-    let mut ciphertext: Vec<u8>; 
-    let plaintext: &[u8];
+fn decryptor(filename: &str, password: &str, remove: bool) -> Result<(), CryptoError> {
     let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove);
-
     let (filename, content) = file_handler.unpack_enc();
-    // Split parameters and ciphertext
-    let (params, temp_slice) = content.split_at(crypto::PARAMS_LEN);
-    ciphertext = vec![0; temp_slice.len()];
-    ciphertext[..temp_slice.len()].copy_from_slice(temp_slice);
-
-    // TODO: This is a timing attack I'm pretty sure
-    let crypto = Crypto::from_params(password, params).unwrap_or_else(|_e| {
-        println!("{}: Password incorrect or file has been tampered with", filename);
-        // TODO: This should simply return an error instead of killing the process
-        process::exit(1);
-    });
+    let (mut ciphertext, crypto) = Crypto::unpack_enc(password, content)?;
     
-    plaintext = crypto.aes_decrypt(&mut ciphertext, filename).unwrap_or_else(|_e| {
-        println!("{}: Decryption failed", filename);
-        // TODO: This should simply return an error instead of killing the process
-        process::exit(1);
-    });
-
+    let plaintext: &[u8];
+    plaintext = crypto.aes_decrypt(&mut ciphertext, filename)?;
     file_handler.create_orig(plaintext, filename);
+    Ok(())
 }
 
 pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
     let password = rpassword::prompt_password_stdout("Password: ").unwrap();
     for filename in filenames.iter() {
-        let modifier = match operation {
-            Operation::DECRYPT => decryptor,
-            Operation::ENCRYPT => encryptor,
+        match operation {
+            Operation::DECRYPT => {
+                decryptor(filename, &password, remove).unwrap_or_else(|err| {
+                    println!("Decrypting {} failed: {}", filename, err);
+                });
+            },
+            Operation::ENCRYPT => {
+                encryptor(filename, &password, remove).unwrap_or_else(|err| {
+                    println!("Encrypting {} failed: {}", filename, err);
+                });
+            }
         };
-        modifier(filename, &password, remove);
     }
 }
