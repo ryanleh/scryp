@@ -5,7 +5,7 @@ use scrypto::{Operation, run};
 
 fn main() {
     let matches = App::new("scrypto")
-        .author("Ryan Lehmkuhl <ryanleh.ob@gmail.com")
+        .author("Ryan Lehmkuhl <ryanleh.ob@gmail.com>")
         .version("1.0")
         .about("Encrypt files using 128-bit AES-GCM")
         .arg(Arg::with_name("filenames")

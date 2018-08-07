@@ -4,6 +4,7 @@ use self::io::prelude::*;
 use std::fs;
 use std::str;
 use Operation;
+use ScryptoError;
 
 pub struct FileHandler<'a> {
     name: &'a str,
@@ -13,18 +14,16 @@ pub struct FileHandler<'a> {
 }
 
 impl<'a> FileHandler<'a> {
-    pub fn new(name: &'a str, operation: &'a Operation, remove: bool) -> FileHandler<'a> {
+    pub fn new(name: &'a str, operation: &'a Operation, remove: bool) -> Result<FileHandler<'a>, ScryptoError> {
         let mut content = Vec::new();
         // TODO: Handle with result
-        File::open(&name)
-            .expect("Error opening file")
-            .read_to_end(&mut content)
-            .expect("Error reading file");
-        FileHandler{ name,
+        File::open(&name)?
+            .read_to_end(&mut content)?;
+        Ok(FileHandler{ name,
                      content, 
                      remove, 
                      operation, 
-        } 
+        })
     }
 
     pub fn content(&self) -> &Vec<u8> {

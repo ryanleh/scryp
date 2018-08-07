@@ -1,9 +1,7 @@
 extern crate ring;
+use ScryptoError;
 use self::ring::{aead, digest, rand, pbkdf2, constant_time};
 use self::rand::{SystemRandom, SecureRandom};
-
-use std::error;
-use std::fmt;
 
 static AEAD_ALG: &'static aead::Algorithm = &aead::AES_256_GCM;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
@@ -12,39 +10,9 @@ const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 const HASH_LEN: usize = 32;
 const PBKDF2_ITERS: u32 = 300000;
-pub const TAG_LEN: usize = 16;
-pub const PARAMS_LEN: usize = SALT_LEN + HASH_LEN + NONCE_LEN;
+const TAG_LEN: usize = 16;
+const PARAMS_LEN: usize = SALT_LEN + HASH_LEN + NONCE_LEN;
 
-#[derive(Debug)]
-pub enum CryptoError {
-    Password,
-    Integrity,
-    Runtime,
-}
-
-impl From<ring::error::Unspecified> for CryptoError {
-    fn from(_: ring::error::Unspecified) -> Self { CryptoError::Runtime }
-}
-
-impl fmt::Display for CryptoError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            CryptoError::Password => write!(f, "Incorrect password or file tampered with"),
-            CryptoError::Integrity => write!(f, "File has been tampered with"),
-            CryptoError::Runtime => write!(f, "Runtime error occured :("),
-        }
-    }
-}
-
-impl error::Error for CryptoError {
-    fn description(&self) -> &str {
-        match *self {
-            CryptoError::Password => &"Incorrect password or file tampered with",
-            CryptoError::Integrity => &"File has been tampered with",
-            CryptoError::Runtime => &"Runtime error occured",
-        }
-    }
-}
 
 pub struct Crypto {
     salt: [u8; SALT_LEN],
@@ -57,14 +25,13 @@ pub struct Crypto {
 impl Crypto {
     pub fn new<'a> (password: &'a str,
                     salt: Option<[u8; SALT_LEN]>, 
-                    nonce: Option<[u8; NONCE_LEN]>) -> Result<Crypto, CryptoError> {
+                    nonce: Option<[u8; NONCE_LEN]>) -> Result<Crypto, ScryptoError> {
         // Match salt to provided input or randomness
         let salt = match salt {
             Some(s) => s,
             None => {
                 let mut temp = [0; SALT_LEN];
                 Crypto::get_random_bytes(&mut temp)?;
-        //.expect("Failed to generate random bytes for salt");
                 temp
             },
         };
@@ -74,7 +41,6 @@ impl Crypto {
             None => {
                 let mut temp = [0; NONCE_LEN];
                 Crypto::get_random_bytes(&mut temp)?;
-        //.expect("Failed to generate random bytes for nonce");
                 temp
             },
         };
@@ -87,7 +53,7 @@ impl Crypto {
     }
    
     /// Fills given slice with random bytes
-    fn get_random_bytes(dest: &mut [u8]) -> Result<(), CryptoError> {
+    fn get_random_bytes(dest: &mut [u8]) -> Result<(), ScryptoError> {
         let random = SystemRandom::new();
         random.fill(dest)?;
         Ok(())
@@ -108,16 +74,16 @@ impl Crypto {
     }
 
     /// Performs constant time comparison between given hash array and Crypto instance's hash array
-    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), CryptoError> {
+    pub fn verify_key(&self, file_key_hash: &[u8; HASH_LEN]) -> Result<(), ScryptoError> {
         constant_time::verify_slices_are_equal(&self.key_hash, file_key_hash)
-            .map_err(|_e| CryptoError::Password)
+            .map_err(|_e| ScryptoError::Password)
     }
 
-    // TODO: Change naming
+    /// Encrypts and tags the plaintext inside the ciphertext vector
     pub fn aes_encrypt<'a>(&self, 
                            plaintext: &[u8],
                            ciphertext: &'a mut Vec<u8>, 
-                           filename: &str) -> Result<(), CryptoError> {
+                           filename: &str) -> Result<(), ScryptoError> {
         // Since seal_in_place rewrites the plaintext vector to store ciphertext, we copy
         // the plaintext into the ciphertext vector and add space for the tag
         ciphertext.extend_from_slice(plaintext);
@@ -132,10 +98,10 @@ impl Crypto {
     /// the plaintext
     pub fn aes_decrypt<'a>(&self,
                            ciphertext: &'a mut [u8],
-                           filename: &str) -> Result<&'a mut [u8], CryptoError> {
+                           filename: &str) -> Result<&'a mut [u8], ScryptoError> {
         let open_key = aead::OpeningKey::new(AEAD_ALG, &self.key)?;
         aead::open_in_place(&open_key, &self.nonce, filename.as_bytes(), 0, ciphertext)
-            .map_err(|_e| CryptoError::Integrity)
+            .map_err(|_e| ScryptoError::Integrity)
     }
 
     /// Returns an array containing Crypto instance's params
@@ -150,10 +116,10 @@ impl Crypto {
     /// Extracts the crypto params and ciphertext from an enc file, verifies integrity of 
     /// the parameters, and instantiates a new Crypto instance.  Returns the ciphertext
     /// and crypto object
-    pub fn unpack_enc(password: &str, content: &[u8]) -> Result<(Vec<u8>, Crypto), CryptoError> {
+    pub fn unpack_enc(password: &str, content: &[u8]) -> Result<(Vec<u8>, Crypto), ScryptoError> {
         // Assert that content is large enough for split
         if content.len() < (PARAMS_LEN) {
-            return Err(CryptoError::Integrity);
+            return Err(ScryptoError::Integrity);
         }
         // Split parameters and ciphertext - the temp_slice is because we need
         // ciphertext to be a vector not a slice... not sure if there's a better
@@ -188,7 +154,6 @@ mod tests {
 
     #[test]
     fn test_hash() {
-        // Compute SHA256("test")
         let expected: [u8; HASH_LEN] = [159, 134, 208, 129, 136, 76, 125, 101,
                                         154, 47, 234, 160, 197, 90, 208, 21, 
                                         163, 191, 79, 27, 43, 11, 130, 44, 209,
@@ -213,7 +178,7 @@ mod tests {
                                        62, 212, 44, 248, 227, 0, 225, 58, 160, 25, 62, 112, 
                                        147, 98, 197, 141, 104, 22, 214, 232, 18];
         let correct_hash = Crypto::hash(&correct);
-        let crypto = Crypto::new("test", salt, None);
+        let crypto = Crypto::new("test", Some(salt), None).unwrap();
         let result = crypto.verify_key(&correct_hash);
         assert_eq!(result.unwrap(), ());
     }
@@ -225,26 +190,26 @@ mod tests {
                                        62, 212, 44, 248, 227, 0, 225, 58, 160, 25, 62, 112, 
                                        147, 98, 197, 141, 104, 22, 214, 232, 18];
         let incorrect_hash = Crypto::hash(&incorrect);
-        let crypto = Crypto::new("test", salt, None);
+        let crypto = Crypto::new("test", Some(salt), None).unwrap();
         let result = crypto.verify_key(&incorrect_hash);
         result.unwrap();
     }
 
     #[test]
     fn test_aes_encrypt() {
-        let crypto = Crypto::new("test", salt, nonce); 
-        let correct = [161, 199, 190, 204, 58, 189, 4, 240, 55, 139, 246, 96, 177, 30, 206, 
+        let crypto = Crypto::new("test", Some(salt), Some(nonce)).unwrap(); 
+        let correct = vec![161, 199, 190, 204, 58, 189, 4, 240, 55, 139, 246, 96, 177, 30, 206, 
                        230, 234, 117, 164, 93];
         let msg: String = "test".to_string();
         let mut ciphertext: Vec<u8> = Vec::new();
-        let actual = crypto.aes_encrypt(msg.as_bytes(), &mut ciphertext, filename).unwrap();
-        assert_eq!(correct, actual);
+        crypto.aes_encrypt(msg.as_bytes(), &mut ciphertext, filename).unwrap();
+        assert_eq!(correct, ciphertext);
         
     }
 
     #[test]
     fn test_aes_decrypt() {
-        let crypto = Crypto::new("test", salt, nonce); 
+        let crypto = Crypto::new("test", Some(salt), Some(nonce)).unwrap(); 
         let correct = "test".to_string();
         let mut ciphertext = [161, 199, 190, 204, 58, 189, 4, 240, 55, 139, 246, 96, 177, 
                               30, 206, 230, 234, 117, 164, 93];
