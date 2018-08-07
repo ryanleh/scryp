@@ -3,17 +3,14 @@ extern crate ring;
 pub mod crypto;
 pub mod file_handler;
 use file_handler::FileHandler;
-use std::io;
-
 use crypto::{ Crypto };
-
 use std::fmt;
+use std::io;
 
 pub enum Operation {
     DECRYPT,
     ENCRYPT,
 }
-
 
 #[derive(Debug)]
 pub enum ScryptoError {
@@ -52,18 +49,18 @@ fn encryptor(filename: &str, password: &str, remove: bool) -> Result<(), Scrypto
 
     // Making assumption that ciphertext is always full length of ciphertext buffer
     // (which should be true)
-    file_handler.create_enc(&params, &ciphertext);
+    file_handler.create_enc(&params, &ciphertext)?;
     Ok(())
 }
 
 fn decryptor(filename: &str, password: &str, remove: bool) -> Result<(), ScryptoError> {
     let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove)?;
-    let (filename, content) = file_handler.unpack_enc();
+    let (filename, content) = file_handler.unpack_enc()?;
     let (mut ciphertext, crypto) = Crypto::unpack_enc(password, content)?;
     
     let plaintext: &[u8];
     plaintext = crypto.aes_decrypt(&mut ciphertext, filename)?;
-    file_handler.create_orig(plaintext, filename);
+    file_handler.create_orig(plaintext, filename)?;
     Ok(())
 }
 
