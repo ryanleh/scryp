@@ -39,20 +39,21 @@ impl fmt::Display for ScryptoError {
     }
 }
 
+/// Handles file_handler and crypto operations for generating enc file
 fn encryptor(filename: &str, password: &str, remove: bool) -> Result<(), ScryptoError>{
     let mut ciphertext: Vec<u8> = Vec::new();
-    // TODO: Handle Error
     let crypto = Crypto::new(password, None, None)?;
-    let params = crypto.params();
     let file_handler = FileHandler::new(filename, &Operation::ENCRYPT, remove)?;
     crypto.aes_encrypt(file_handler.content(), &mut ciphertext, filename)?;
 
-    // Making assumption that ciphertext is always full length of ciphertext buffer
-    // (which should be true)
-    file_handler.create_enc(&params, &ciphertext)?;
+    let content = crypto.pack_enc(&ciphertext);
+
+    // Invariant: ciphertext takes up entire length of ciphertext vector
+    file_handler.create_enc(content)?;
     Ok(())
 }
 
+/// Handles file_handler and crypto operations for decrypting enc file
 fn decryptor(filename: &str, password: &str, remove: bool) -> Result<(), ScryptoError> {
     let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove)?;
     let (filename, content) = file_handler.unpack_enc()?;

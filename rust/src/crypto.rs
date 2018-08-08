@@ -105,12 +105,13 @@ impl Crypto {
     }
 
     /// Returns an array containing Crypto instance's params
-    pub fn params(&self) -> [u8; PARAMS_LEN] {
-        let mut params: [u8; PARAMS_LEN] = [0; PARAMS_LEN];
-        params[..SALT_LEN].copy_from_slice(&self.salt);
-        params[SALT_LEN..SALT_LEN+HASH_LEN].copy_from_slice(&self.key_hash);
-        params[SALT_LEN+HASH_LEN..].copy_from_slice(&self.nonce);
-        params
+    pub fn pack_enc<'a>(&'a self, ciphertext: &'a[u8]) -> Vec<&'a[u8]> {
+        let mut content: Vec<&[u8]> = Vec::new();
+        content.push(&self.salt);
+        content.push(&self.key_hash);
+        content.push(&self.nonce);
+        content.push(ciphertext);
+        content
     }
 
     /// Extracts the crypto params and ciphertext from an enc file, verifies integrity of 
