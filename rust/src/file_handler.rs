@@ -18,7 +18,6 @@ impl<'a> FileHandler<'a> {
                operation: &'a Operation, 
                remove: bool) -> Result<FileHandler<'a>, ScryptoError> {
         let mut content = Vec::new();
-        // TODO: Test this - perhaps use and_then?
         File::open(&name)?
             .read_to_end(&mut content)?;
         Ok(FileHandler{ name,
@@ -33,7 +32,6 @@ impl<'a> FileHandler<'a> {
     }
    
     fn write(&self, filename: &str, content: &Vec<&[u8]>) -> Result<(), ScryptoError> {
-        // TODO: Test throwing all these errors
         let mut buffer = File::create(filename)?;
         for obj in content.iter() {
             buffer.write_all(obj)?;
@@ -53,11 +51,21 @@ impl<'a> FileHandler<'a> {
         // Strip old file name of suffix and add on enc
         // TODO: Check this error
         // TODO: I think this will bug out on hidden files?
-        let enc_name = match self.name.split(".").next() {
-            Some(n) => n,
-            None => return Err(ScryptoError::IO(io::Error::new(io::ErrorKind::Other, 
-                                                               "Invalid filename format"))),
-        };
+        let enc_name: &str; 
+        // Make exception for hidden files
+        if self.name.starts_with(".") {
+            enc_name = match self.name.split(".").next() {
+                Some(n) => n,
+                None => return Err(ScryptoError::IO(io::Error::new(io::ErrorKind::Other, 
+                                                                   "Invalid filename format"))),
+            }
+        } else {
+            enc_name = match self.name.split(".").next() {
+                Some(n) => n,
+                None => return Err(ScryptoError::IO(io::Error::new(io::ErrorKind::Other, 
+                                                                   "Invalid filename format"))),
+            };
+        }
         let filename = format!("{}.enc", enc_name);
 
         // Push all components to be written
