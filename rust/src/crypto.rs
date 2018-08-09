@@ -13,14 +13,12 @@ const PBKDF2_ITERS: u32 = 300000;
 const TAG_LEN: usize = 16;
 const PARAMS_LEN: usize = SALT_LEN + HASH_LEN + NONCE_LEN;
 
-
 pub struct Crypto {
     salt: [u8; SALT_LEN],
     nonce: [u8; NONCE_LEN],
     key_hash: [u8; HASH_LEN],
     key: [u8; KEY_LEN],
 }
-
 
 impl Crypto {
     pub fn new<'a> (password: &'a str,

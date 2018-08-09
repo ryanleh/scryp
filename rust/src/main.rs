@@ -22,16 +22,18 @@ fn main() {
              .long("remove"))
         .get_matches();
 
-    let operation;
+    let operation: Operation;
     if matches.is_present("decrypt") {
         operation = Operation::DECRYPT;
     } else {
         operation = Operation::ENCRYPT;
     }
 
-    let mut remove = false;
+    let remove: bool;
     if matches.is_present("remove") {
         remove = true;
+    } else {
+        remove = false;
     }
 
     let filenames: Vec<&str> = matches.values_of("filenames").unwrap().collect();

@@ -32,12 +32,11 @@ impl<'a> FileHandler<'a> {
         &self.content
     }
   
-    /// Writes content to the specified filename
-    // TODO: Perhaps change content name? A bit ambigious
-    fn write(&self, filename: &str, content: &Vec<&[u8]>) -> Result<(), ScryptoError> {
+    /// Writes to_write to the specified filename
+    fn write(&self, filename: &str, to_write: &Vec<&[u8]>) -> Result<(), ScryptoError> {
         let mut buffer = File::create(filename)?;
         // Content is a vector containing u8 slices so we write each one in order
-        for obj in content.iter() {
+        for obj in to_write.iter() {
             buffer.write_all(obj)?;
         }
         match self.operation {
@@ -55,22 +54,16 @@ impl<'a> FileHandler<'a> {
     pub fn create_enc(&self, mut content: Vec<&'a [u8]>) -> Result<(), ScryptoError> {
         let mut enc_content = Vec::new();
         // Strip old file name of suffix and add on enc
-        // TODO: Check this error
-        // TODO: I think this will bug out on hidden files?
         let enc_name: &str; 
         // Make exception for hidden files
         if self.name.starts_with(".") {
-            enc_name = match self.name[1..].split(".").next() {
-                Some(n) => n,
-                None => return Err(ScryptoError::IO(io::Error::new(io::ErrorKind::Other, 
-                                                                   "Invalid filename format"))),
-            }
+            // Puts the leading . with the filename in enc_name
+            // TODO: Handle multiple prepending .
+            let split_name: Vec<&str> = self.name.split(".").collect();
+            let filename_size = split_name[1].len();
+            enc_name = &self.name[..filename_size+1];
         } else {
-            enc_name = match self.name.split(".").next() {
-                Some(n) => n,
-                None => return Err(ScryptoError::IO(io::Error::new(io::ErrorKind::Other, 
-                                                                   "Invalid filename format"))),
-            };
+            enc_name = self.name.split(".").next().unwrap();
         }
         let filename = format!("{}.enc", enc_name);
 
