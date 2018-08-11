@@ -1,7 +1,8 @@
+use self::io::prelude::*;
 use std::fs::File;
 use std::io;
-use self::io::prelude::*;
 use std::fs;
+use std::path::Path;
 use std::str;
 use Operation;
 use ScryptoError;
@@ -20,11 +21,21 @@ impl<'a> FileHandler<'a> {
         let mut content = Vec::new();
         File::open(&name)?
             .read_to_end(&mut content)?;
-        Ok(FileHandler{ name,
+        // TODO: Test empty
+        // Strip filename of any path - encrypt to current directory by default
+        let stripped_name = Path::new(name)
+            .file_name().unwrap()
+            .to_str().unwrap();
+        Ok(FileHandler{ name: stripped_name,
                         content, 
                         remove, 
                         operation, 
         })
+    }
+
+    /// Returns the file's name
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the file's contents
@@ -54,18 +65,9 @@ impl<'a> FileHandler<'a> {
     pub fn create_enc(&self, mut content: Vec<&'a [u8]>) -> Result<(), ScryptoError> {
         let mut enc_content = Vec::new();
         // Strip old file name of suffix and add on enc
-        let enc_name: &str; 
-        // Make exception for hidden files
-        if self.name.starts_with(".") {
-            // Puts the leading . with the filename in enc_name
-            // TODO: Handle multiple prepending .
-            let split_name: Vec<&str> = self.name.split(".").collect();
-            let filename_size = split_name[1].len();
-            enc_name = &self.name[..filename_size+1];
-        } else {
-            enc_name = self.name.split(".").next().unwrap();
-        }
-        let filename = format!("{}.enc", enc_name);
+        let filename = format!("{}.enc", Path::new(self.name)
+            .file_stem().unwrap()
+            .to_str().unwrap());
 
         // Push all components to be written
         enc_content.push(self.name.as_bytes());

@@ -44,7 +44,7 @@ fn encryptor(filename: &str, password: &str, remove: bool) -> Result<(), Scrypto
     let mut ciphertext: Vec<u8> = Vec::new();
     let crypto = Crypto::new(password, None, None)?;
     let file_handler = FileHandler::new(filename, &Operation::ENCRYPT, remove)?;
-    crypto.aes_encrypt(file_handler.content(), &mut ciphertext, filename)?;
+    crypto.aes_encrypt(file_handler.content(), &mut ciphertext, file_handler.name())?;
 
     let content = crypto.pack_enc(&ciphertext);
 
