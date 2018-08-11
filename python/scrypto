@@ -3,6 +3,7 @@ import argparse
 import os
 import sys
 import getpass
+from pathlib import Path
 
 # Confirm that user is running python3
 if sys.hexversion < 0x3000000:
@@ -40,9 +41,12 @@ class CryptoError(Exception):
 class Crypto(object):
     """Handles all cryptographic operations"""
     def __init__(self, cipher, hasher, password, salt=None, nonce=None):
+        # Match nonce to provided input or randomness
         self.nonce = nonce or self.get_random_bytes(12)
         self.hasher = HASHERS[hasher]
+        # Match salt to provided input or randomness
         self.salt = salt or self.get_random_bytes(16)
+        # Use PBKDF2 to derive key and hash it
         self.key = self.derive_key(password)
         self.key_hash = self.hash(self.key)
         self.cipher = CIPHERS[cipher](self.key)
@@ -61,12 +65,12 @@ class Crypto(object):
                 is_equal = False
         return is_equal
 
-    def verify_password(self, key_hash):
+    def _verify_key(self, key_hash):
         """Verifies password hash"""
         # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, key_hash):
-            raise CryptoError("Key hash comparison failed --> Invalid password"
-                              " or file has been tampered with")
+            raise CryptoError("Incorrect password or file has been tampered"
+                              "with")
 
     def derive_key(self, password):
         """Runs PBKDF2 with 300000 iterations on provided password"""
@@ -100,75 +104,89 @@ class Crypto(object):
             plaintext = self.cipher.decrypt(self.nonce, ciphertext,
                                             bytes(filename, 'utf-8'))
         except InvalidTag:
-            raise CryptoError("Invalid Tag --> File has been tampered with")
+            raise CryptoError("File has been tampered with")
         return plaintext
+
+    def pack_enc(self, ciphertext):
+        """Returns an array containing Crypto instance's params"""
+        return self.salt + self.key_hash + self.nonce + ciphertext
+
+    def unpack_enc(password, crypto_content):
+        """Extracts the crypto params and ciphertext from an enc file, verifies
+        integrity of the parameters, and instantiates a new Crypto instance.
+        Returns the ciphertext and crypto object"""
+        try:
+            salt = crypto_content[:16]
+            key_hash = crypto_content[16:48]
+            nonce = crypto_content[48:60]
+            ciphertext = crypto_content[60:]
+        except IndexError:
+            raise CryptoError("File has been tampered with")
+        crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
+        crypto._verify_key(key_hash)
+        return ciphertext, crypto
 
 
 class FileHandler(object):
     """Handles all file i/o"""
-    def __init__(self, content, cwd, operation, filename=None):
-        self.content = content
-        self.cwd = cwd
+    def __init__(self, filepath, operation, remove):
+        self.filepath = filepath
+        # Try to open the given filepath
+        try:
+            with open(filepath, 'br') as f:
+                self.content = f.read()
+        except IOError:
+            print("Given file: {} does not exist. Skipping".format(filepath))
+        self.filename = Path(self.filepath).name
         self.operation = operation
-        self.name = filename
+        self.remove = remove
 
-    def write(self):
-        with open(self.cwd + '/' + self.name_to_write, 'bw') as f:
-            f.write(self.to_write)
-        if self.operation == "Encrypt":
-            print("File: {} encrypted!".format(self.name))
+    def get_filename(self):
+        """Returns the file's name"""
+        return self.filename
+
+    def get_content(self):
+        """Returns the files' contents"""
+        return self.content
+
+    def _write(self, to_write):
+        """Writes to_write to the specified filename"""
+        with open(self.name_to_write, 'bw') as f:
+            f.write(to_write)
+        if self.operation == "ENCRYPT":
+            print("File: {} encrypted!".format(self.filename))
         else:
-            print("File: {} decrypted!".format(self.name))
+            print("File: {} decrypted!".format(self.filename))
+        if self.remove:
+            os.remove(self.filepath)
 
-    def generate_enc_file(self, crypto):
-        """Returns all elements concatenated together and tagged correctly"""
+    def create_enc(self, crypto_content):
+        """Extracts the file's name and concatenates it with crypto_content"""
+        # Strip filename of extension and add .enc
+        self.name_to_write = "{}.enc".format(Path(self.filename).stem)
         # Forward slashes are banned in filenames so use that as a separator
-        self.name_to_write = self.name.split(".")[0] + ".enc"
-        # TODO: Consider changing self.name to default bytes?
-        self.to_write = (bytes(self.name, 'utf-8') + b"/" + crypto.salt +
-                         crypto.key_hash + crypto.nonce + self.content)
+        self._write((bytes(self.filename, 'utf-8') + b"/" + crypto_content))
 
-    def decode_file(self, password):
-        """Parses an encrypted file into the corresponding crypto object"""
+    def dismantle_enc(self):
+        """Extracts filename and crypto_content from enc file"""
         # Extract all components of file
         try:
             self.name_to_write = str(self.content.split(b"/")[0], 'utf-8')
-            # TODO: Rename again
-            content = self.content.split(b"/")[1]
-            salt = content[:16]
-            key_hash = content[16:48]
-            nonce = content[48:60]
-            ciphertext = content[60:]
+            crypto_content = self.content.split(b"/", 1)[1]
         except IndexError:
             raise CryptoError("File has been tampered with")
-        # Generate crypto object and verify integrity
-        crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
-        crypto.verify_password(key_hash)
-        return crypto, ciphertext, self.name_to_write
+        return self.name_to_write, crypto_content
 
-    def get_files(cwd, filenames, remove):
-        """Return a list containing tuples of all filenames and plaintexts"""
-        files = []
-        for filename in filenames:
-            try:
-                file = open(cwd + '/' + filename, 'rb')
-                # Each element is a tuple of filename and contents
-                files.append((filename, file.read()))
-                file.close()
-            except IOError:
-                    print("Given file: " + filename +
-                          " does not exist. Skipping")
-            # Delete the original file if the option was set by user
-            if remove:
-                os.remove(cwd + '/' + filename)
-        return files
+    def create_orig(self, plaintext):
+        """Writes the plaintext to given filename"""
+        self._write(plaintext)
 
 
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description='Encrypt files using 128-bit '
                                      'AES')
-    parser.add_argument('filenames', nargs='+',
+    parser.add_argument('filepaths', nargs='+',
                         help='Files to encrypt/decrypt (Default is encrypt)',
                         type=str)
     parser.add_argument('-d', '--decrypt', required=False,
@@ -180,42 +198,39 @@ def make_parser():
     return parser
 
 
-def encryptor(password, cwd, file):
+def encryptor(filepath, password, remove):
     """Encrypts the given file with the given password"""
     # Create crypto object
-    filename, plaintext = file
     crypto = Crypto("AES-GCM", "SHA256", password)
+    file_handler = FileHandler(filepath, "ENCRYPT", remove)
 
     # Encrypt and write file
-    ciphertext = crypto.aes_encrypt(plaintext, filename)
-    file_handler = FileHandler(ciphertext, cwd, "Encrypt", filename)
-    file_handler.generate_enc_file(crypto)
-    file_handler.write()
+    ciphertext = crypto.aes_encrypt(file_handler.get_content(),
+                                    file_handler.get_filename())
+    crypto_content = crypto.pack_enc(ciphertext)
+    file_handler.create_enc(crypto_content)
 
 
-def decryptor(password, cwd, file):
+def decryptor(filepath, password, remove):
     """Decrypts the given file with the given password"""
     # Parse file and create crypto object
-    filename, enc_file = file
-    file_handler = FileHandler(enc_file, cwd, "Decrypt", filename)
-    # TODO: rename filename to something that doesn't conflict
-    crypto, ciphertext, filename = file_handler.decode_file(password)
+    file_handler = FileHandler(filepath, "DECRYPT", remove)
+    orig_filename, crypto_content = file_handler.dismantle_enc()
+    ciphertext, crypto = Crypto.unpack_enc(password, crypto_content)
 
     # Decrypt and write file
-    plaintext = crypto.aes_decrypt(ciphertext, filename)
-    file_handler.to_write = plaintext
-    file_handler.write()
+    plaintext = crypto.aes_decrypt(ciphertext, orig_filename)
+    file_handler.create_orig(plaintext)
 
 
 if __name__ == "__main__":
     # Get arguments and files
     cwd = os.getcwd()
     args = make_parser().parse_args()
-    filenames = args.filenames
+    filepaths = args.filepaths
     remove = args.remove
     decrypt = args.decrypt
     password = bytes(getpass.getpass(), 'utf-8')
-    files = FileHandler.get_files(cwd, filenames, remove)
 
     # Set modifer functions depending on user-requested action
     if decrypt:
@@ -224,5 +239,5 @@ if __name__ == "__main__":
         modifier = encryptor
 
     # Encrypt/decrypt each file
-    for file in files:
-        modifier(password, cwd, file)
+    for filepath in filepaths:
+        modifier(filepath, password, remove)

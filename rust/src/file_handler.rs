@@ -21,8 +21,7 @@ impl<'a> FileHandler<'a> {
         let mut content = Vec::new();
         File::open(&name)?
             .read_to_end(&mut content)?;
-        // TODO: Test empty
-        // Strip filename of any path - encrypt to current directory by default
+        // Strip filename of any path - encrypt/decrypt to current directory by default
         let stripped_name = Path::new(name)
             .file_name().unwrap()
             .to_str().unwrap();
@@ -61,7 +60,7 @@ impl<'a> FileHandler<'a> {
         Ok(())
     }
 
-    /// Extracts the filename and concatenates it with crypo params and ciphertext
+    /// Extracts the filename and concatenates it with crypto_content
     pub fn create_enc(&self, mut content: Vec<&'a [u8]>) -> Result<(), ScryptoError> {
         let mut enc_content = Vec::new();
         // Strip old file name of suffix and add on enc
@@ -77,7 +76,7 @@ impl<'a> FileHandler<'a> {
         Ok(())
     }
 
-    /// Extracts filename and params/ciphertext from enc file
+    /// Extracts filename and crypto_content from enc file
     pub fn unpack_enc(&self) -> Result<(&str, &[u8]), ScryptoError> {
         // Splits the enc file on the / inbetween filename and params/ciphertext
         let split = match self.content.iter().position(|&b| b == b"/"[..][0]) {
