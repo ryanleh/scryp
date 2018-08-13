@@ -13,7 +13,7 @@ fn main() {
              .required(true)
              .multiple(true))
         .arg(Arg::with_name("decrypt")
-             .help("Sets mode to decrypt")
+             .help("Decrypt file")
              .short("d")
              .long("decrypt"))
         .arg(Arg::with_name("remove")

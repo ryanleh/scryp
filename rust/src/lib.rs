@@ -40,43 +40,44 @@ impl fmt::Display for ScryptoError {
 }
 
 /// Handles file_handler and crypto operations for generating enc file
-fn encryptor(filename: &str, password: &str, remove: bool) -> Result<(), ScryptoError>{
+fn encryptor(filepath: &str, password: &str, remove: bool) -> Result<(), ScryptoError>{
     let mut ciphertext: Vec<u8> = Vec::new();
     let crypto = Crypto::new(password, None, None)?;
-    let file_handler = FileHandler::new(filename, &Operation::ENCRYPT, remove)?;
-    crypto.aes_encrypt(file_handler.content(), &mut ciphertext, file_handler.name())?;
+    let file_handler = FileHandler::new(filepath, &Operation::ENCRYPT, remove)?;
+    crypto.aes_encrypt(file_handler.get_content(),
+        &mut ciphertext, 
+        file_handler.get_filename())?;
 
-    let content = crypto.pack_enc(&ciphertext);
-
+    let crypto_content = crypto.pack_enc(&ciphertext);
     // Invariant: ciphertext takes up entire length of ciphertext vector
-    file_handler.create_enc(content)?;
+    file_handler.create_enc(crypto_content)?;
     Ok(())
 }
 
 /// Handles file_handler and crypto operations for decrypting enc file
-fn decryptor(filename: &str, password: &str, remove: bool) -> Result<(), ScryptoError> {
-    let file_handler = FileHandler::new(filename, &Operation::DECRYPT, remove)?;
-    let (filename, content) = file_handler.unpack_enc()?;
-    let (mut ciphertext, crypto) = Crypto::unpack_enc(password, content)?;
+fn decryptor(filepath: &str, password: &str, remove: bool) -> Result<(), ScryptoError> {
+    let file_handler = FileHandler::new(filepath, &Operation::DECRYPT, remove)?;
+    let (orig_filename, crypto_content) = file_handler.dismantle_enc()?;
+    let (mut ciphertext, crypto) = Crypto::unpack_enc(password, crypto_content)?;
     
     let plaintext: &[u8];
-    plaintext = crypto.aes_decrypt(&mut ciphertext, filename)?;
-    file_handler.create_orig(plaintext, filename)?;
+    plaintext = crypto.aes_decrypt(&mut ciphertext, orig_filename)?;
+    file_handler.create_orig(plaintext)?;
     Ok(())
 }
 
-pub fn run(operation: &Operation, remove: bool, filenames: Vec<&str>) {
+pub fn run(operation: &Operation, remove: bool, filepaths: Vec<&str>) {
     let password = rpassword::prompt_password_stdout("Password: ").unwrap();
-    for filename in filenames.iter() {
+    for filepath in filepaths.iter() {
         match operation {
             Operation::DECRYPT => {
-                decryptor(filename, &password, remove).unwrap_or_else(|err| {
-                    println!("Decrypting {} failed: {}", filename, err);
+                decryptor(filepath, &password, remove).unwrap_or_else(|err| {
+                    println!("Decrypting {} failed: {}", filepath, err);
                 });
             },
             Operation::ENCRYPT => {
-                encryptor(filename, &password, remove).unwrap_or_else(|err| {
-                    println!("Encrypting {} failed: {}", filename, err);
+                encryptor(filepath, &password, remove).unwrap_or_else(|err| {
+                    println!("Encrypting {} failed: {}", filepath, err);
                 });
             }
         };

@@ -104,26 +104,26 @@ impl Crypto {
 
     /// Returns an array containing Crypto instance's params
     pub fn pack_enc<'a>(&'a self, ciphertext: &'a[u8]) -> Vec<&'a[u8]> {
-        let mut content: Vec<&[u8]> = Vec::new();
-        content.push(&self.salt);
-        content.push(&self.key_hash);
-        content.push(&self.nonce);
-        content.push(ciphertext);
-        content
+        let mut crypto_content: Vec<&[u8]> = Vec::new();
+        crypto_content.push(&self.salt);
+        crypto_content.push(&self.key_hash);
+        crypto_content.push(&self.nonce);
+        crypto_content.push(ciphertext);
+        crypto_content
     }
 
     /// Extracts the crypto params and ciphertext from an enc file, verifies integrity of 
     /// the parameters, and instantiates a new Crypto instance.  Returns the ciphertext
     /// and crypto object
-    pub fn unpack_enc(password: &str, content: &[u8]) -> Result<(Vec<u8>, Crypto), ScryptoError> {
-        // Assert that content is large enough for split
-        if content.len() < (PARAMS_LEN) {
+    pub fn unpack_enc(password: &str, crypto_content: &[u8]) -> Result<(Vec<u8>, Crypto), ScryptoError> {
+        // Assert that crypto_content is large enough for split
+        if crypto_content.len() < (PARAMS_LEN) {
             return Err(ScryptoError::Integrity);
         }
         // Split parameters and ciphertext - the temp_slice is because we need
         // ciphertext to be a vector not a slice... not sure if there's a better
         // way to do this
-        let (params, temp_slice) = content.split_at(PARAMS_LEN);
+        let (params, temp_slice) = crypto_content.split_at(PARAMS_LEN);
         let mut ciphertext = vec![0; temp_slice.len()];
         ciphertext[..temp_slice.len()].copy_from_slice(temp_slice);
 

@@ -65,10 +65,10 @@ class Crypto(object):
                 is_equal = False
         return is_equal
 
-    def _verify_key(self, key_hash):
+    def _verify_key(self, file_key_hash):
         """Verifies password hash"""
         # Check if password is correct before decryption b/c padding oracles
-        if not self.constant_time_comparison(self.key_hash, key_hash):
+        if not self.constant_time_comparison(self.key_hash, file_key_hash):
             raise CryptoError("Incorrect password or file has been tampered"
                               "with")
 
@@ -185,7 +185,7 @@ class FileHandler(object):
 def make_parser():
     """Builds ArgumentParser Object"""
     parser = argparse.ArgumentParser(description='Encrypt files using 128-bit '
-                                     'AES')
+                                     'AES-GCM')
     parser.add_argument('filepaths', nargs='+',
                         help='Files to encrypt/decrypt (Default is encrypt)',
                         type=str)
