@@ -69,7 +69,7 @@ class Crypto(object):
         """Verifies password hash"""
         # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, file_key_hash):
-            raise CryptoError("Incorrect password or file has been tampered"
+            raise CryptoError("Incorrect password or file has been tampered "
                               "with")
 
     def derive_key(self, password):
@@ -129,7 +129,7 @@ class Crypto(object):
 
 class FileHandler(object):
     """Handles all file i/o"""
-    def __init__(self, filepath, operation, remove):
+    def __init__(self, filepath, output_dir, operation, remove):
         self.filepath = filepath
         # Try to open the given filepath
         try:
@@ -137,6 +137,15 @@ class FileHandler(object):
                 self.content = f.read()
         except IOError:
             print("Given file: {} does not exist. Skipping".format(filepath))
+        # Output to given directory if it's valid or default to the cwd
+        if output_dir:
+            if os.path.isdir(output_dir):
+                self.output_dir = output_dir
+            else:
+                raise CryptoError("Output directory does not exist or"
+                                  " insufficient permissions")
+        else:
+            self.output_dir = os.getcwd()
         self.filename = Path(self.filepath).name
         self.operation = operation
         self.remove = remove
@@ -151,7 +160,7 @@ class FileHandler(object):
 
     def _write(self, to_write):
         """Writes to_write to the specified filename"""
-        with open(self.name_to_write, 'bw') as f:
+        with open(self.output_dir + "/" + self.name_to_write, 'bw') as f:
             f.write(to_write)
         if self.operation == "ENCRYPT":
             print("File: {} encrypted!".format(self.filename))
@@ -189,6 +198,9 @@ def make_parser():
     parser.add_argument('filepaths', nargs='+',
                         help='Files to encrypt/decrypt (Default is encrypt)',
                         type=str)
+    parser.add_argument('-o', '--output-dir', required=False,
+                        type=str,
+                        help='Directory to output files')
     parser.add_argument('-d', '--decrypt', required=False,
                         action='store_true',
                         help='Decrypt file')
@@ -198,11 +210,11 @@ def make_parser():
     return parser
 
 
-def encryptor(filepath, password, remove):
+def encryptor(filepath, output_dir, password, remove):
     """Encrypts the given file with the given password"""
     # Create crypto object
     crypto = Crypto("AES-GCM", "SHA256", password)
-    file_handler = FileHandler(filepath, "ENCRYPT", remove)
+    file_handler = FileHandler(filepath, output_dir, "ENCRYPT", remove)
 
     # Encrypt and write file
     ciphertext = crypto.aes_encrypt(file_handler.get_content(),
@@ -211,10 +223,10 @@ def encryptor(filepath, password, remove):
     file_handler.create_enc(crypto_content)
 
 
-def decryptor(filepath, password, remove):
+def decryptor(filepath, output_dir, password, remove):
     """Decrypts the given file with the given password"""
     # Parse file and create crypto object
-    file_handler = FileHandler(filepath, "DECRYPT", remove)
+    file_handler = FileHandler(filepath, output_dir, "DECRYPT", remove)
     orig_filename, crypto_content = file_handler.dismantle_enc()
     ciphertext, crypto = Crypto.unpack_enc(password, crypto_content)
 
@@ -228,6 +240,7 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     args = make_parser().parse_args()
     filepaths = args.filepaths
+    output_dir = args.output_dir
     remove = args.remove
     decrypt = args.decrypt
     password = bytes(getpass.getpass(), 'utf-8')
@@ -240,4 +253,4 @@ if __name__ == "__main__":
 
     # Encrypt/decrypt each file
     for filepath in filepaths:
-        modifier(filepath, password, remove)
+        modifier(filepath, output_dir, password, remove)

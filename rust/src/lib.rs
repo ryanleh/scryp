@@ -40,10 +40,13 @@ impl fmt::Display for ScryptoError {
 }
 
 /// Handles file_handler and crypto operations for generating enc file
-fn encryptor(filepath: &str, password: &str, remove: bool) -> Result<(), ScryptoError>{
+fn encryptor(filepath: &str, 
+             output_dir: &str,
+             password: &str,
+             remove: bool) -> Result<(), ScryptoError> {
     let mut ciphertext: Vec<u8> = Vec::new();
     let crypto = Crypto::new(password, None, None)?;
-    let file_handler = FileHandler::new(filepath, &Operation::ENCRYPT, remove)?;
+    let file_handler = FileHandler::new(filepath, output_dir, &Operation::ENCRYPT, remove)?;
     crypto.aes_encrypt(file_handler.get_content(),
         &mut ciphertext, 
         file_handler.get_filename())?;
@@ -55,8 +58,11 @@ fn encryptor(filepath: &str, password: &str, remove: bool) -> Result<(), Scrypto
 }
 
 /// Handles file_handler and crypto operations for decrypting enc file
-fn decryptor(filepath: &str, password: &str, remove: bool) -> Result<(), ScryptoError> {
-    let file_handler = FileHandler::new(filepath, &Operation::DECRYPT, remove)?;
+fn decryptor(filepath: &str,
+             output_dir: &str, 
+             password: &str, 
+             remove: bool) -> Result<(), ScryptoError> {
+    let file_handler = FileHandler::new(filepath, output_dir, &Operation::DECRYPT, remove)?;
     let (orig_filename, crypto_content) = file_handler.dismantle_enc()?;
     let (mut ciphertext, crypto) = Crypto::unpack_enc(password, crypto_content)?;
     
@@ -66,17 +72,17 @@ fn decryptor(filepath: &str, password: &str, remove: bool) -> Result<(), Scrypto
     Ok(())
 }
 
-pub fn run(operation: &Operation, remove: bool, filepaths: Vec<&str>) {
+pub fn run(operation: &Operation, remove: bool, filepaths: Vec<&str>, output_dir: &str) {
     let password = rpassword::prompt_password_stdout("Password: ").unwrap();
     for filepath in filepaths.iter() {
         match operation {
             Operation::DECRYPT => {
-                decryptor(filepath, &password, remove).unwrap_or_else(|err| {
+                decryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
                     println!("Decrypting {} failed: {}", filepath, err);
                 });
             },
             Operation::ENCRYPT => {
-                encryptor(filepath, &password, remove).unwrap_or_else(|err| {
+                encryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
                     println!("Encrypting {} failed: {}", filepath, err);
                 });
             }

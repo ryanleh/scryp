@@ -11,6 +11,7 @@ use ScryptoError;
 pub struct FileHandler<'a> {
     filename: &'a str,
     filepath: &'a str,
+    output_dir: &'a str,
     name_to_write: RefCell<String>,
     content: Vec<u8>,
     operation: &'a Operation,
@@ -19,6 +20,7 @@ pub struct FileHandler<'a> {
 
 impl<'a> FileHandler<'a> {
     pub fn new(filepath: &'a str, 
+               output_dir: &'a str,
                operation: &'a Operation, 
                remove: bool) -> Result<FileHandler<'a>, ScryptoError> {
         let mut content = Vec::new();
@@ -30,6 +32,7 @@ impl<'a> FileHandler<'a> {
             .to_str().unwrap();
         Ok(FileHandler{ filename,
                         filepath,
+                        output_dir,
                         name_to_write: RefCell::new(String::new()),
                         content, 
                         operation, 
@@ -49,7 +52,9 @@ impl<'a> FileHandler<'a> {
   
     /// Writes to_write to the specified filename
     fn write(&self, to_write: &Vec<&[u8]>) -> Result<(), ScryptoError> {
-        let mut buffer = File::create(self.name_to_write.borrow().as_str())?;
+        let mut buffer = File::create(format!("{}/{}", 
+                                              self.output_dir,
+                                              self.name_to_write.borrow().as_str()))?;
         // Content is a vector containing u8 slices so we write each one in order
         for obj in to_write.iter() {
             buffer.write_all(obj)?;
