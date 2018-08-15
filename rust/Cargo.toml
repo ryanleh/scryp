@@ -7,3 +7,4 @@ authors = ["Ryan Lehmkuhl <ryanleh.ob@gmail.com>"]
 ring = "0.12.1"
 clap = "2.32.0"
 rpassword = "1.0.0"
+rayon = "1.0"

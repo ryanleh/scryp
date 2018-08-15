@@ -1,7 +1,9 @@
 extern crate rpassword;
 extern crate ring;
+extern crate rayon;
 pub mod crypto;
 pub mod file_handler;
+use rayon::prelude::*;
 use file_handler::FileHandler;
 use crypto::{ Crypto };
 use std::fmt;
@@ -74,18 +76,19 @@ fn decryptor(filepath: &str,
 
 pub fn run(operation: &Operation, remove: bool, filepaths: Vec<&str>, output_dir: &str) {
     let password = rpassword::prompt_password_stdout("Password: ").unwrap();
-    for filepath in filepaths.iter() {
-        match operation {
-            Operation::DECRYPT => {
-                decryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
-                    println!("Decrypting {} failed: {}", filepath, err);
-                });
-            },
-            Operation::ENCRYPT => {
-                encryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
-                    println!("Encrypting {} failed: {}", filepath, err);
-                });
-            }
-        };
-    }
+    filepaths.into_par_iter()
+        .for_each(|filepath| {
+            match operation {
+                Operation::DECRYPT => {
+                    decryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
+                        println!("Decrypting {} failed: {}", filepath, err);
+                    });
+                },
+                Operation::ENCRYPT => {
+                    encryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
+                        println!("Encrypting {} failed: {}", filepath, err);
+                    });
+                }
+            };
+        });
 }

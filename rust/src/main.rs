@@ -17,7 +17,8 @@ fn main() {
         .arg(Arg::with_name("output_dir")
              .help("Directory to output files")
              .short("o")
-             .long("output-dir"))
+             .long("output-dir")
+             .takes_value(true))
         .arg(Arg::with_name("decrypt")
              .help("Decrypt file")
              .short("d")
@@ -30,16 +31,18 @@ fn main() {
 
     let filenames: Vec<&str> = matches.values_of("filenames").unwrap().collect();
 
+    // If user has specified an output directory, make sure it's valid or use 
+    // the working directory
     let mut output_dir = path::PathBuf::new();
     if matches.is_present("output_dir") {
         output_dir.push(matches.value_of("output_dir").unwrap());
         if !output_dir.is_dir() {
-            println!("Insufficient privleges or working directory is invalid");
+            println!("Insufficient privileges or output directory is invalid");
             process::exit(1);
         }
     } else {
         output_dir = std::env::current_dir().unwrap_or_else(|_e| {
-            println!("Insufficient privleges or working directory is invalid");
+            println!("Insufficient privileges or working directory is invalid");
             process::exit(1);
         })
     }
