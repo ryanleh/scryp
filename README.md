@@ -16,6 +16,6 @@ DISCLAIMER: Use at your own risk.  While I have tried to follow best practices, 
 2. Check that the hash of the new key matches the file-provided hash
 3. Decrypt the file with using re-derived key, ciphertext, nonce, and filename
 
-#### Random notes to keep in mind:
+#### Notes:
 * I use a large number of PBKDF2 iterations since personally the files I'm encrypting are small... you may want to change this
-* Some issues still remain with encrypting/decrypting files outside the current directory
+* The rust version supports parallel encryption/decryption of multiple files
