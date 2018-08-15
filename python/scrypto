@@ -237,31 +237,8 @@ def decryptor(filepath, output_dir, password, remove):
     file_handler.create_orig(plaintext)
 
 
-if __name__ == "__main__":
-    # Get arguments and files
-    cwd = os.getcwd()
-    args = make_parser().parse_args()
-    filepaths = args.filepaths
-    output_dir = args.output_dir
-    # If user has specified an output directory, make sure it's valid or use
-    # the working directory
-    if output_dir:
-        if not os.path.isdir(output_dir):
-            print("Insufficient privileges or output directory {} is invalid"
-                  .format(output_dir))
-            sys.exit(1)
-    else:
-        cwd = os.getcwd()
-        if not os.path.isdir(cwd):
-            print("Insufficient privileges or working directory {} is invalid"
-                  .format(cwd))
-            sys.exit(1)
-        output_dir = cwd
-
-    remove = args.remove
-    decrypt = args.decrypt
+def run(decrypt, remove, filepaths, output_dir):
     password = bytes(getpass.getpass(), 'utf-8')
-
     # Encrypt/decrypt each file
     for filepath in filepaths:
         if decrypt:
@@ -274,3 +251,31 @@ if __name__ == "__main__":
                 encryptor(filepath, output_dir, password, remove)
             except ScryptoError as e:
                 print("Encrypting {} failed: {}".format(filepath, e))
+
+
+if __name__ == "__main__":
+    try:
+        # Get arguments and files
+        cwd = os.getcwd()
+        args = make_parser().parse_args()
+        filepaths = args.filepaths
+        output_dir = args.output_dir
+        # If user has specified an output directory, make sure it's valid or
+        # use the working directory
+        if output_dir:
+            if not os.path.isdir(output_dir):
+                print("Insufficient privileges or output directory {} is "
+                      "invalid".format(output_dir))
+                sys.exit(1)
+        else:
+            cwd = os.getcwd()
+            if not os.path.isdir(cwd):
+                print("Insufficient privileges or working directory {} is "
+                      "invalid".format(cwd))
+                sys.exit(1)
+            output_dir = cwd
+        remove = args.remove
+        decrypt = args.decrypt
+        run(decrypt, remove, filepaths, output_dir)
+    except (KeyboardInterrupt, SystemExit):
+        sys.exit(1)
