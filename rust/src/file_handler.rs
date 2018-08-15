@@ -1,6 +1,7 @@
 use self::io::prelude::*;
 use std::fs::File;
 use std::io;
+use std::io::{ Error, ErrorKind };
 use std::fs;
 use std::path::Path;
 use std::str;
@@ -52,9 +53,15 @@ impl<'a> FileHandler<'a> {
   
     /// Writes to_write to the specified filename
     fn write(&self, to_write: &Vec<&[u8]>) -> Result<(), ScryptoError> {
-        let mut buffer = File::create(format!("{}/{}", 
-                                              self.output_dir,
-                                              self.name_to_write.borrow().as_str()))?;
+        let output_file = format!("{}/{}", 
+                                  self.output_dir,
+                                  self.name_to_write.borrow().as_str());
+        let mut buffer = File::create(&output_file)
+            .map_err(|_e| {
+                ScryptoError::IO(Error::new(ErrorKind::Other, 
+                    format!("Couldn't open {} for writing. Insufficient privileges or \
+                            name is a directory", output_file)))
+            })?;
         // Content is a vector containing u8 slices so we write each one in order
         for obj in to_write.iter() {
             buffer.write_all(obj)?;

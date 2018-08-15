@@ -32,7 +32,7 @@ HASHERS = {
 backend = default_backend()
 
 
-class CryptoError(Exception):
+class ScryptoError(Exception):
     """Exception raised for errors related to message decryption"""
     def __init__(self, message):
         self.message = message
@@ -58,7 +58,7 @@ class Crypto(object):
     def constant_time_comparison(self, str1, str2):
         """Compares two strings in constant times to avoid timing attacks"""
         if len(str1) != len(str2):
-            raise CryptoError("File is of incorrect format")
+            raise ScryptoError("File is of incorrect format")
         is_equal = True
         for a, b in zip(str1, str2):
             if a != b:
@@ -69,8 +69,8 @@ class Crypto(object):
         """Verifies password hash"""
         # Check if password is correct before decryption b/c padding oracles
         if not self.constant_time_comparison(self.key_hash, file_key_hash):
-            raise CryptoError("Incorrect password or file has been tampered "
-                              "with")
+            raise ScryptoError("Incorrect password or file has been tampered "
+                               "with")
 
     def derive_key(self, password):
         """Runs PBKDF2 with 300000 iterations on provided password"""
@@ -94,8 +94,13 @@ class Crypto(object):
 
     def aes_encrypt(self, plaintext, filename):
         """Encrypts plaintext using specified cipher and provided key"""
-        ciphertext = self.cipher.encrypt(self.nonce, plaintext,
-                                         bytes(filename, 'utf-8'))
+        try:
+            ciphertext = self.cipher.encrypt(self.nonce, plaintext,
+                                             bytes(filename, 'utf-8'))
+        except OverflowError:
+            print("Attempting to encrypt over 2^32 bytes of data with one key"
+                  ". Split up plaintext file")
+
         return ciphertext
 
     def aes_decrypt(self, ciphertext, filename):
@@ -104,7 +109,7 @@ class Crypto(object):
             plaintext = self.cipher.decrypt(self.nonce, ciphertext,
                                             bytes(filename, 'utf-8'))
         except InvalidTag:
-            raise CryptoError("File has been tampered with")
+            raise ScryptoError("File has been tampered with")
         return plaintext
 
     def pack_enc(self, ciphertext):
@@ -121,7 +126,7 @@ class Crypto(object):
             nonce = crypto_content[48:60]
             ciphertext = crypto_content[60:]
         except IndexError:
-            raise CryptoError("File has been tampered with")
+            raise ScryptoError("File has been tampered with")
         crypto = Crypto("AES-GCM", "SHA256", password, salt, nonce)
         crypto._verify_key(key_hash)
         return ciphertext, crypto
@@ -136,16 +141,8 @@ class FileHandler(object):
             with open(filepath, 'br') as f:
                 self.content = f.read()
         except IOError:
-            print("Given file: {} does not exist. Skipping".format(filepath))
-        # Output to given directory if it's valid or default to the cwd
-        if output_dir:
-            if os.path.isdir(output_dir):
-                self.output_dir = output_dir
-            else:
-                raise CryptoError("Output directory does not exist or"
-                                  " insufficient permissions")
-        else:
-            self.output_dir = os.getcwd()
+            raise ScryptoError("File does not exist. Skipping")
+        self.output_dir = output_dir
         self.filename = Path(self.filepath).name
         self.operation = operation
         self.remove = remove
@@ -160,8 +157,13 @@ class FileHandler(object):
 
     def _write(self, to_write):
         """Writes to_write to the specified filename"""
-        with open(self.output_dir + "/" + self.name_to_write, 'bw') as f:
-            f.write(to_write)
+        try:
+            with open(self.output_dir + "/" + self.name_to_write, 'bw') as f:
+                f.write(to_write)
+        except IOError:
+            raise ScryptoError("Couldn't open {} for writing. Insufficient"
+                               " permissions or name is a directory".format(
+                                   self.output_dir + "/" + self.name_to_write))
         if self.operation == "ENCRYPT":
             print("File: {} encrypted!".format(self.filename))
         else:
@@ -183,7 +185,7 @@ class FileHandler(object):
             self.name_to_write = str(self.content.split(b"/")[0], 'utf-8')
             crypto_content = self.content.split(b"/", 1)[1]
         except IndexError:
-            raise CryptoError("File has been tampered with")
+            raise ScryptoError("File has been tampered with")
         return self.name_to_write, crypto_content
 
     def create_orig(self, plaintext):
@@ -241,16 +243,34 @@ if __name__ == "__main__":
     args = make_parser().parse_args()
     filepaths = args.filepaths
     output_dir = args.output_dir
+    # If user has specified an output directory, make sure it's valid or use
+    # the working directory
+    if output_dir:
+        if not os.path.isdir(output_dir):
+            print("Insufficient privileges or output directory {} is invalid"
+                  .format(output_dir))
+            sys.exit(1)
+    else:
+        cwd = os.getcwd()
+        if not os.path.isdir(cwd):
+            print("Insufficient privileges or working directory {} is invalid"
+                  .format(cwd))
+            sys.exit(1)
+        output_dir = cwd
+
     remove = args.remove
     decrypt = args.decrypt
     password = bytes(getpass.getpass(), 'utf-8')
 
-    # Set modifer functions depending on user-requested action
-    if decrypt:
-        modifier = decryptor
-    else:
-        modifier = encryptor
-
     # Encrypt/decrypt each file
     for filepath in filepaths:
-        modifier(filepath, output_dir, password, remove)
+        if decrypt:
+            try:
+                decryptor(filepath, output_dir, password, remove)
+            except ScryptoError as e:
+                print("Decrypting {} failed: {}".format(filepath, e))
+        else:
+            try:
+                encryptor(filepath, output_dir, password, remove)
+            except ScryptoError as e:
+                print("Encrypting {} failed: {}".format(filepath, e))
