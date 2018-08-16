@@ -1,17 +1,17 @@
-use self::io::prelude::*;
-use std::fs::File;
+use std::str;
 use std::io;
+use self::io::prelude::*;
 use std::io::{ Error, ErrorKind };
 use std::fs;
+use std::fs::File;
 use std::path::Path;
-use std::str;
 use std::cell::RefCell;
 use Operation;
 use ScryptoError;
 
 pub struct FileHandler<'a> {
     filename: &'a str,
-    filepath: &'a str,
+    filepath: &'a Path,
     output_dir: &'a str,
     name_to_write: RefCell<String>,
     content: Vec<u8>,
@@ -20,7 +20,7 @@ pub struct FileHandler<'a> {
 }
 
 impl<'a> FileHandler<'a> {
-    pub fn new(filepath: &'a str, 
+    pub fn new(filepath: &'a Path,
                output_dir: &'a str,
                operation: &'a Operation, 
                remove: bool) -> Result<FileHandler<'a>, ScryptoError> {
@@ -28,7 +28,7 @@ impl<'a> FileHandler<'a> {
         File::open(filepath)?
             .read_to_end(&mut content)?;
         // Strip filename of any path - encrypt/decrypt to current directory by default
-        let filename = Path::new(filepath)
+        let filename = filepath
             .file_name().unwrap()
             .to_str().unwrap();
         Ok(FileHandler{ filename,

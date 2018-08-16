@@ -143,10 +143,10 @@ class FileHandler(object):
             with open(filepath, 'br') as f:
                 self.content = f.read()
         except IOError:
-            raise ScryptoError("File does not exist or is a directory. "
-                               "Skipping")
+            raise ScryptoError("{}: file does not exist or is a directory. "
+                               "Skipping".format(filepath))
         self.output_dir = output_dir
-        self.filename = Path(self.filepath).name
+        self.filename = self.filepath.name
         self.operation = operation
         self.remove = remove
 
@@ -259,7 +259,18 @@ if __name__ == "__main__":
         # Get arguments and files
         cwd = os.getcwd()
         args = make_parser().parse_args()
+        # Collect and canonicalize filepaths
         filepaths = args.filepaths
+        for i in range(len(filepaths)):
+            try:
+                filepath = filepaths[i]
+                filepaths[i] = Path(filepath).resolve()
+            except FileNotFoundError:
+                print("{}: file does not exist or is a directory"
+                      .format(filepath))
+                sys.exit(1)
+        # Remove any duplicate filepaths
+        filepaths = list(set(filepaths))
         output_dir = args.output_dir
         # If user has specified an output directory, make sure it's valid or
         # use the working directory

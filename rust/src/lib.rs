@@ -5,7 +5,8 @@ pub mod crypto;
 pub mod file_handler;
 use rayon::prelude::*;
 use file_handler::FileHandler;
-use crypto::{ Crypto };
+use crypto::Crypto;
+use std::path::{ Path, PathBuf };
 use std::fmt;
 use std::io;
 
@@ -42,7 +43,7 @@ impl fmt::Display for ScryptoError {
 }
 
 /// Handles file_handler and crypto operations for generating enc file
-fn encryptor(filepath: &str, 
+fn encryptor(filepath: &Path, 
              output_dir: &str,
              password: &str,
              remove: bool) -> Result<(), ScryptoError> {
@@ -60,7 +61,7 @@ fn encryptor(filepath: &str,
 }
 
 /// Handles file_handler and crypto operations for decrypting enc file
-fn decryptor(filepath: &str,
+fn decryptor(filepath: &Path,
              output_dir: &str, 
              password: &str, 
              remove: bool) -> Result<(), ScryptoError> {
@@ -74,19 +75,20 @@ fn decryptor(filepath: &str,
     Ok(())
 }
 
-pub fn run(operation: &Operation, remove: bool, filepaths: Vec<&str>, output_dir: &str) {
+pub fn run(operation: &Operation, remove: bool, filepaths: Vec<PathBuf>, output_dir: &str) {
     let password = rpassword::prompt_password_stdout("Password: ").unwrap();
+    // Process each file in parallel
     filepaths.into_par_iter()
         .for_each(|filepath| {
             match operation {
                 Operation::DECRYPT => {
-                    decryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
-                        println!("Decrypting {} failed: {}", filepath, err);
+                    decryptor(&filepath, output_dir, &password, remove).unwrap_or_else(|err| {
+                        println!("Decrypting {:?} failed: {}", filepath, err);
                     });
                 },
                 Operation::ENCRYPT => {
-                    encryptor(filepath, output_dir, &password, remove).unwrap_or_else(|err| {
-                        println!("Encrypting {} failed: {}", filepath, err);
+                    encryptor(&filepath, output_dir, &password, remove).unwrap_or_else(|err| {
+                        println!("Encrypting {:?} failed: {}", filepath, err);
                     });
                 }
             };
