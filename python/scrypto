@@ -3,7 +3,9 @@ import argparse
 import os
 import sys
 import getpass
+import functools
 from pathlib import Path
+from multiprocessing import Pool
 
 # Confirm that user is running python3
 if sys.hexversion < 0x3000000:
@@ -141,7 +143,8 @@ class FileHandler(object):
             with open(filepath, 'br') as f:
                 self.content = f.read()
         except IOError:
-            raise ScryptoError("File does not exist. Skipping")
+            raise ScryptoError("File does not exist or is a directory. "
+                               "Skipping")
         self.output_dir = output_dir
         self.filename = Path(self.filepath).name
         self.operation = operation
@@ -237,20 +240,18 @@ def decryptor(filepath, output_dir, password, remove):
     file_handler.create_orig(plaintext)
 
 
-def run(decrypt, remove, filepaths, output_dir):
-    password = bytes(getpass.getpass(), 'utf-8')
+def run(filepath, decrypt, password, remove, output_dir):
     # Encrypt/decrypt each file
-    for filepath in filepaths:
-        if decrypt:
-            try:
-                decryptor(filepath, output_dir, password, remove)
-            except ScryptoError as e:
-                print("Decrypting {} failed: {}".format(filepath, e))
-        else:
-            try:
-                encryptor(filepath, output_dir, password, remove)
-            except ScryptoError as e:
-                print("Encrypting {} failed: {}".format(filepath, e))
+    if decrypt:
+        try:
+            decryptor(filepath, output_dir, password, remove)
+        except ScryptoError as e:
+            print("Decrypting {} failed: {}".format(filepath, e))
+    else:
+        try:
+            encryptor(filepath, output_dir, password, remove)
+        except ScryptoError as e:
+            print("Encrypting {} failed: {}".format(filepath, e))
 
 
 if __name__ == "__main__":
@@ -276,6 +277,11 @@ if __name__ == "__main__":
             output_dir = cwd
         remove = args.remove
         decrypt = args.decrypt
-        run(decrypt, remove, filepaths, output_dir)
+        password = bytes(getpass.getpass(), 'utf-8')
+        # Process each file in parallel
+        pool = Pool()
+        job = functools.partial(run, decrypt=decrypt, password=password,
+                                remove=remove, output_dir=output_dir)
+        pool.map(job, filepaths)
     except (KeyboardInterrupt, SystemExit):
         sys.exit(1)
