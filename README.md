@@ -18,4 +18,4 @@ DISCLAIMER: Use at your own risk.  While I have tried to follow best practices, 
 
 #### Notes:
 * I use a large number of PBKDF2 iterations since personally the files I'm encrypting are small... you may want to change this
-* The rust version supports parallel encryption/decryption of multiple files
+* Python and Rust versions support parallel encryption/decryption of multiple files
