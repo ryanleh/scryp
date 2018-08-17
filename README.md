@@ -1,7 +1,7 @@
 # Simple Crypto
-###### A simple AES file encryptor/decryptor with PyCrypto
+###### A simple AES file encryptor/decrypt
 
-All of the free file encryptors I found online either were way too feature-packed or didn't handle encrypting multiple files well so I decided to make my own.  
+A pet project to gain experience using cryptographic libraries in Python and Rust.
 
 DISCLAIMER: Use at your own risk.  While I have tried to follow best practices, this program has not been thouroughly tested to be secure
 
@@ -17,5 +17,5 @@ DISCLAIMER: Use at your own risk.  While I have tried to follow best practices, 
 3. Decrypt the file with using re-derived key, ciphertext, nonce, and filename
 
 #### Notes:
-* I use a large number of PBKDF2 iterations since personally the files I'm encrypting are small... you may want to change this
+* I use a large number of PBKDF2 iterations since the files I'm encrypting are small... you may want to change this
 * Python and Rust versions support parallel encryption/decryption of multiple files
